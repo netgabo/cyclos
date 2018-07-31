@@ -383,6 +383,14 @@ module.exports = [
     ]
   },
   {
+    "id": "cordova-plugin-tts.tts",
+    "file": "plugins/cordova-plugin-tts/www/tts.js",
+    "pluginId": "cordova-plugin-tts",
+    "clobbers": [
+      "TTS"
+    ]
+  },
+  {
     "id": "es6-promise-plugin.Promise",
     "file": "plugins/es6-promise-plugin/www/promise.js",
     "pluginId": "es6-promise-plugin",
@@ -402,14 +410,6 @@ module.exports = [
     "pluginId": "net.khertan.plugin.MusicControl",
     "clobbers": [
       "window.musicControl"
-    ]
-  },
-  {
-    "id": "cordova-plugin-tts.tts",
-    "file": "plugins/cordova-plugin-tts/www/tts.js",
-    "pluginId": "cordova-plugin-tts",
-    "clobbers": [
-      "TTS"
     ]
   }
 ];
@@ -435,11 +435,11 @@ module.exports.metadata =
   "cordova-plugin-request-location-accuracy": "2.2.2",
   "cordova-plugin-splashscreen": "3.2.2",
   "cordova-plugin-statusbar": "2.2.3",
+  "cordova-plugin-tts": "0.2.3",
   "cordova-plugin-whitelist": "1.2.2",
   "es6-promise-plugin": "4.2.2",
   "cordova-plugin-x-socialsharing": "5.1.8",
-  "net.khertan.plugin.MusicControl": "0.0.1",
-  "cordova-plugin-tts": "0.2.3"
+  "net.khertan.plugin.MusicControl": "0.0.1"
 };
 // BOTTOM OF METADATA
 });
