@@ -1,6 +1,6 @@
 'use strict';
 
-var loggingModule = angular.module('net.khertan.reporter', []);
+var loggingModule = angular.module('fr.rvier.reporter', []);
 
 /**
  * Service that gives us a nice Angular-esque wrapper around the

@@ -194,480 +194,534 @@ angular
     $scope.prefs.distvocalinterval = 0; //en km (0 == None)
     $scope.prefs.timevocalinterval = 5; //en minutes
     $scope.prefs.timefastvocalinterval = 0; //en minutes
-    $scope.prefs.timeslowvocalinterval = 0; //en minutes
+      $scope.prefs.timeslowvocalinterval = 0; //en minutes
 
-    $scope.prefs.heartratemax = 190;
-    $scope.prefs.heartratemin = 80;
-    $scope.prefs.registeredBLE = {};
+      $scope.prefs.heartratemax = 190;
+      $scope.prefs.heartratemin = 80;
+      $scope.prefs.registeredBLE = {};
 
-    $scope.prefs.usegoogleelevationapi = false;
-    $scope.bluetooth_scanning = false;
+      $scope.prefs.usegoogleelevationapi = false;
+      $scope.bluetooth_scanning = false;
 
-    $scope.equipments = [];
+      $scope.equipments = [];
 
-    $scope.dateTimeReviver = function(key, value) {
-      if (key === "duration" || key === "pace") {
-        if (typeof value === "string") {
-          return new Date(value);
+      $scope.dateTimeReviver = function(key, value) {
+        if (key === "duration" || key === "pace") {
+          if (typeof value === "string") {
+            return new Date(value);
+          }
         }
-      }
-      return value;
-    };
+        return value;
+      };
 
-    $scope.parseFloatOr = function(shouldbefloat) {
-      if (!shouldbefloat) {
-        return 0;
-      } else {
-        try {
-          return parseFloat(shouldbefloat);
-        } catch (err) {
-          console.info("shouldbefloat:" + err);
-          return 0.0;
-        }
-      }
-    };
-
-    $scope.computeKalmanLatLng = function(datas) {
-      var Q_metres_per_second = 3;
-      var TimeStamp_milliseconds;
-      var tinc;
-      var lat;
-      var lng;
-      var newlat;
-      var newlng;
-      var variance = -1; // P matrix.  Negative means object uninitialised.  NB: units irrelevant, as long as same units used throughout
-      var K;
-      var accuracy;
-      var kalmanEle = new KalmanFilter(0.2, 3, 10);
-
-      return datas.map(function(item, idx) {
-        accuracy = $scope.parseFloatOr(item[5]);
-        newlat = parseFloat(item[0]);
-        newlng = parseFloat(item[1]);
-        if (accuracy < 1) {
-          accuracy = 1;
-        }
-        if (variance < 0) {
-          TimeStamp_milliseconds = new Date(item[2]).getMilliseconds();
-          lat = newlat;
-          lng = newlng;
-          variance = accuracy * accuracy;
+      $scope.parseFloatOr = function(shouldbefloat) {
+        if (!shouldbefloat) {
+          return 0;
         } else {
-          tinc = new Date(item[2]).getMilliseconds() - TimeStamp_milliseconds;
-          if (tinc > 0) {
-            variance += tinc * Q_metres_per_second * Q_metres_per_second / 1000;
+          try {
+            return parseFloat(shouldbefloat);
+          } catch (err) {
+            console.info("shouldbefloat:" + err);
+            return 0.0;
+          }
+        }
+      };
+
+      $scope.computeKalmanLatLng = function(datas) {
+        var Q_metres_per_second = 3;
+        var TimeStamp_milliseconds;
+        var tinc;
+        var lat;
+        var lng;
+        var newlat;
+        var newlng;
+        var variance = -1; // P matrix.  Negative means object uninitialised.  NB: units irrelevant, as long as same units used throughout
+        var K;
+        var accuracy;
+        var kalmanEle = new KalmanFilter(0.2, 3, 10);
+
+        return datas.map(function(item, idx) {
+          accuracy = $scope.parseFloatOr(item[5]);
+          newlat = parseFloat(item[0]);
+          newlng = parseFloat(item[1]);
+          if (accuracy < 1) {
+            accuracy = 1;
+          }
+          if (variance < 0) {
             TimeStamp_milliseconds = new Date(item[2]).getMilliseconds();
-          }
-          K = variance / (variance + accuracy * accuracy);
-          lat += K * (newlat - lat);
-          lng += K * (newlng - lng);
-          variance = (1 - K) * variance * Q_metres_per_second;
-        }
-
-        if (isNaN(item[3]) && idx - 1 > 0) {
-          item[3] = datas[idx - 1][3];
-        }
-
-        return {
-          lat: lat,
-          lng: lng,
-          timestamp: item[2],
-          ele: kalmanEle.update($scope.parseFloatOr(item[3]))[0],
-          hr: $scope.parseFloatOr(item[4]),
-          accuracy: $scope.parseFloatOr(item[5]),
-          cadence: $scope.parseFloatOr(item[6]),
-          power: $scope.parseFloatOr(item[7]),
-          stryde: $scope.parseFloatOr(item[8])
-        };
-      });
-    };
-
-    $scope.computeSessionSimplifyAndFixElevation = function(asession, doSave) {
-      //var encpath = '';
-      var gpx_path = [];
-      var gpxPoints = [];
-
-      if (
-        asession.nottracked === true ||
-        asession.gpxData === undefined ||
-        asession.gpxData.length == 0
-      ) {
-        //Manually edited session we cant recompute them
-        asession.nottracked = true;
-        return asession;
-      }
-
-      gpxPoints = simplifyGPX(
-        $scope.computeKalmanLatLng(asession.gpxData),
-        0.00002
-      );
-
-      //Do it before and talk after
-      //Thats here for preventing waiting too long an answer which could be
-      //long to get on slow mobile network and so the session is displayed
-      //with a 0 km run
-      asession = $scope.computeSessionFromGPXPoints(
-        asession,
-        gpxPoints,
-        doSave
-      );
-
-      console.log(
-        "test scope.prefs.usegoogleelevationapi:" +
-          $scope.prefs.usegoogleelevationapi
-      );
-      if ($scope.prefs.usegoogleelevationapi === true) {
-        console.log("scope.prefs.usegoogleelevationapi");
-        gpx_path = gpxPoints.map(function(item) {
-          return [item.lat, item.lng];
-        });
-
-        var gpx_paths = [];
-        var i,
-          j,
-          chunk = 100;
-        for (i = 0, j = gpx_path.length; i < j; i += chunk) {
-          gpx_paths.push(gpx_path.slice(i, i + chunk));
-        }
-        var encpaths = gpx_paths.map(function(path) {
-          return L.polyline(path).encodePath();
-        });
-        //console.log(encpaths);
-        encpaths.map(function(encpath, encidx) {
-          $http({
-            url:
-              "https://maps.googleapis.com/maps/api/elevation/json?key=AIzaSyCIxn6gS4TePkbl7Pdu49JHoMR6POMafdg&locations=enc:" +
-              encpath,
-            method: "GET"
-          }).then(
-            function(response) {
-              if (response.data.status === "OK") {
-                for (var idx = 0; idx < response.data.results.length; idx++) {
-                  gpxPoints[encidx * 100 + idx].ele =
-                    response.data.results[idx].elevation;
-                }
-                if (encidx === encpaths.length - 1) {
-                  asession.fixedElevation = true;
-                  asession = $scope.computeSessionFromGPXPoints(
-                    asession,
-                    gpxPoints,
-                    doSave
-                  );
-                }
-              } else {
-                console.log("Can t retrieve data from google elevation api");
-              }
-            },
-            function(error) {
-              console.log(error);
+            lat = newlat;
+            lng = newlng;
+            variance = accuracy * accuracy;
+          } else {
+            tinc = new Date(item[2]).getMilliseconds() - TimeStamp_milliseconds;
+            if (tinc > 0) {
+              variance += tinc * Q_metres_per_second * Q_metres_per_second / 1000;
+              TimeStamp_milliseconds = new Date(item[2]).getMilliseconds();
             }
-          );
-        });
-      }
-
-      return asession;
-    };
-
-    $scope.computeSessionFromGPXData = function(asession, doSave) {
-      return $scope.computeSessionSimplifyAndFixElevation(asession, doSave);
-    };
-
-    $scope.recomputeEverythings = function() {
-      $scope.sessionsIndex = undefined;
-      $scope.sessionsIndexLength = 0;
-      $scope.sortedSessionsIndex = undefined;
-      $scope.loadAllJsonSessions($scope.dataPath).then(function(fullyLoaded) {
-        for (var recid in $scope.sessions) {
-          if ($scope.sessions.hasOwnProperty(recid)) {
-            $scope.computeSessionFromGPXData($scope.sessions[recid], true);
+            K = variance / (variance + accuracy * accuracy);
+            lat += K * (newlat - lat);
+            lng += K * (newlng - lng);
+            variance = (1 - K) * variance * Q_metres_per_second;
           }
-        }
-        $ionicPopup.alert({
-          title: $scope.translateFilter("_recompute_end_title"),
-          template: $scope.translateFilter("_recompute_end_text")
+
+          if (isNaN(item[3]) && idx - 1 > 0) {
+            item[3] = datas[idx - 1][3];
+          }
+
+          return {
+            lat: lat,
+            lng: lng,
+            timestamp: item[2],
+            ele: kalmanEle.update($scope.parseFloatOr(item[3]))[0],
+            hr: $scope.parseFloatOr(item[4]),
+            accuracy: $scope.parseFloatOr(item[5]),
+            cadence: $scope.parseFloatOr(item[6]),
+            power: $scope.parseFloatOr(item[7]),
+            stryde: $scope.parseFloatOr(item[8])
+          };
         });
-      });
-    };
+      };
 
-    $scope.computeSessionFromGPXPoints = function(session, gpxPoints, doSave) {
-      console.debug("computeSessionFromGPXPoints");
-      var hrZ1 =
-        parseInt($scope.prefs.heartratemin) +
-        parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.6;
-      var hrZ2 =
-        parseInt($scope.prefs.heartratemin) +
-        parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.7;
-      var hrZ3 =
-        parseInt($scope.prefs.heartratemin) +
-        parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.8;
-      var hrZ4 =
-        parseInt($scope.prefs.heartratemin) +
-        parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.9;
-      var hrZ = [0, 0, 0, 0, 0];
-      var hr_color = 0;
-      session.hhr_colors = [
-        "#dcdcdc",
-        "#97BBCD",
-        "#46BFBD",
-        "#FDB45C",
-        "#F7464A"
-      ];
-      session.hr_colors = [
-        "rgba(220,220,220,0.5)",
-        "rgba(151, 187, 205, 0.5)",
-        "rgba(70, 191, 189, 0.5)",
-        "rgba(253, 180, 92, 0.5)",
-        "rgba(247, 70, 74, 0.5)"
-      ];
-      session.hhr_colors = [
-        {
-          fillColor: "rgba(220,220,220,0.5)",
-          strokeColor: "rgba(220,220,220,0.7)"
-        },
-        {
-          fillColor: "rgba(151, 187, 205, 0.5)",
-          strokeColor: "rgba(151, 187, 205, 0.7)"
-        },
-        {
-          fillColor: "rgba(70, 191, 189, 0.5)",
-          strokeColor: "rgba(70, 191, 189, 0.7)"
-        },
-        {
-          fillColor: "rgba(253, 180, 92, 0.5)",
-          strokeColor: "rgba(253, 180, 92, 0.7)"
-        },
-        {
-          fillColor: "rgba(247, 70, 74, 0.5",
-          strokeColor: "rgba(247, 70, 74, 0.7"
+      $scope.computeSessionSimplifyAndFixElevation = function(asession, doSave) {
+        //var encpath = '';
+        var gpx_path = [];
+        var gpxPoints = [];
+
+        if (
+          asession.nottracked === true ||
+          asession.gpxData === undefined ||
+          asession.gpxData.length == 0
+        ) {
+          //Manually edited session we cant recompute them
+          asession.nottracked = true;
+          return asession;
         }
-      ];
 
-      //Max and min for leaflet and ele
-      var minHeight = gpxPoints[0].ele;
-      var maxHeight = minHeight;
-      var lonMin = gpxPoints[0].lng;
-      var lonMax = lonMin;
-      var latMax = gpxPoints[0].lat;
-      var latMin = latMax;
-      var eleDown = 0;
-      var eleUp = 0;
-      var maxHeartRate = 0;
+        gpxPoints = simplifyGPX(
+          $scope.computeKalmanLatLng(asession.gpxData),
+          0.00002
+        );
 
-      //For calc
-      var curLat = gpxPoints[0].lat;
-      var curLng = gpxPoints[0].lng;
-      var curDate = gpxPoints[0].timestamp;
-      var curEle = gpxPoints[0].ele;
-      var curHeartRate = gpxPoints[0].hr;
-      var curAcc = gpxPoints[0].accuracy;
-      var curCadence = gpxPoints[0].cadence;
-      var curPower = gpxPoints[0].power;
-      var curStryde = gpxPoints[0].stryde;
+        //Do it before and talk after
+        //Thats here for preventing waiting too long an answer which could be
+        //long to get on slow mobile network and so the session is displayed
+        //with a 0 km run
+        asession = $scope.computeSessionFromGPXPoints(
+          asession,
+          gpxPoints,
+          doSave
+        );
 
-      var oldLat = curLat;
-      var oldLng = curLng;
-      var oldDate = curDate;
-      var oldEle = curEle;
-
-      var timeStartTmp = new Date(gpxPoints[0].timestamp);
-      var timeEndTmp = 0;
-
-      var mz = 1;
-      var dTemp = 0;
-      var dTotal = 0;
-      var dMaxTemp = 1000; // kilometer marker
-      var stepDetails = [];
-
-      var mz2 = 1;
-      var eleStartTmp = curEle;
-      var heartRatesTmp = [];
-      var heartRatesTmp2 = [];
-      var cadenceTmp = [];
-      var cadenceTmp2 = [];
-      var powerTmp = [];
-      var powerTmp2 = [];
-      var strydeTmp = [];
-      var strydeTmp2 = [];
-      var dTemp2 = 0;
-      var smallStepDetail = [];
-      var timeStartTmp2 = new Date(gpxPoints[0].timestamp);
-      var timeEndTmp2 = 0;
-      var dMaxTemp2 = 250;
-
-      var paths = {};
-      paths.p1 = {
-        color: "#3F51B5",
-        weight: 2,
-        latlngs: []
-      };
-      var markers = {};
-      markers.s = {
-        lat: curLat,
-        lng: curLng,
-        icon: {
-          type: "div",
-          className: "leaflet-circle-marker-start",
-          html: "S",
-          iconSize: [20, 20]
-        },
-        message: "S",
-        draggable: false,
-        opacity: 0.8
-      };
-      markers.e = {
-        lat: gpxPoints[gpxPoints.length - 1].lat,
-        lng: gpxPoints[gpxPoints.length - 1].lng,
-        icon: {
-          type: "div",
-          className: "leaflet-circle-marker-end",
-          html: "E",
-          iconSize: [20, 20]
-        },
-        message: "S",
-        draggable: false,
-        opacity: 0.8
-      };
-      //var dists = [];
-      var gpxspeedtmp;
-      var gpxpacetmp;
-      var timeDiff;
-      var dLat;
-      var dLon;
-      var dLat1;
-      var dLat2;
-      var dtd;
-      var dspeed;
-      var a, c, d;
-      var idx = 0;
-      var dwithoutpause = 0;
-
-      for (var p = 0; p < gpxPoints.length; p++) {
-        curLat = gpxPoints[p].lat;
-        curLng = gpxPoints[p].lng;
-        curEle = gpxPoints[p].ele;
-        curDate = gpxPoints[p].timestamp;
-        curHeartRate = gpxPoints[p].hr;
-        curAcc = gpxPoints[p].accuracy;
-        curCadence = gpxPoints[p].cadence;
-        curPower = gpxPoints[p].power;
-        curStryde = gpxPoints[p].stryde;
-        //Distances
-        dLat = (curLat - oldLat) * Math.PI / 180;
-        dLon = (curLng - oldLng) * Math.PI / 180;
-        dLat1 = oldLat * Math.PI / 180;
-        dLat2 = curLat * Math.PI / 180;
-        a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(dLat1) *
-            Math.cos(dLat1) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        d = 6371 * c;
-        //Speed between this and previous point
-        dtd = new Date(curDate) - new Date(oldDate);
-        dspeed = Math.round(d * 100) / 100 / (dtd / 1000 / 60 / 60);
-
-        console.log(d + ":" + curAcc);
-
-        if (d < 0.0001) {
-          console.log("stop point:" + d);
-        } else {
-          //Leaflet
-          paths.p1.latlngs.push({
-            lat: curLat,
-            lng: curLng
+        console.log(
+          "test scope.prefs.usegoogleelevationapi:" +
+            $scope.prefs.usegoogleelevationapi
+        );
+        if ($scope.prefs.usegoogleelevationapi === true) {
+          console.log("scope.prefs.usegoogleelevationapi");
+          gpx_path = gpxPoints.map(function(item) {
+            return [item.lat, item.lng];
           });
-          if (curLat < latMin) {
-            latMin = curLat;
-          }
-          if (curLat > latMax) {
-            latMax = curLat;
-          }
-          if (curLng < lonMin) {
-            lonMin = curLng;
-          }
-          if (curLng > lonMax) {
-            lonMax = curLng;
-          }
 
-          //Max elevation
-          if (curEle > maxHeight) {
-            maxHeight = curEle;
+          var gpx_paths = [];
+          var i,
+            j,
+            chunk = 100;
+          for (i = 0, j = gpx_path.length; i < j; i += chunk) {
+            gpx_paths.push(gpx_path.slice(i, i + chunk));
           }
-          if (curEle < minHeight) {
-            minHeight = curEle;
-          }
-          if (curHeartRate > maxHeartRate) {
-            {
-              maxHeartRate = curHeartRate;
-            }
-          }
-
-          if (p > 0) {
-            //Time without same
-            if (dspeed > 0.001) {
-              console.log(dspeed);
-              dwithoutpause += dtd;
-            }
-
-            dTotal += d;
-            gpxPoints[p].dist = dTotal;
-
-            if (curHeartRate) {
-              heartRatesTmp.push(curHeartRate);
-              heartRatesTmp2.push(curHeartRate);
-
-              if (curHeartRate > hrZ4) {
-                idx = 4;
-              } else {
-                if (curHeartRate > hrZ3) {
-                  idx = 3;
+          var encpaths = gpx_paths.map(function(path) {
+            return L.polyline(path).encodePath();
+          });
+          //console.log(encpaths);
+          encpaths.map(function(encpath, encidx) {
+            $http({
+              url:
+                "https://maps.googleapis.com/maps/api/elevation/json?key=AIzaSyCIxn6gS4TePkbl7Pdu49JHoMR6POMafdg&locations=enc:" +
+                encpath,
+              method: "GET"
+            }).then(
+              function(response) {
+                if (response.data.status === "OK") {
+                  for (var idx = 0; idx < response.data.results.length; idx++) {
+                    gpxPoints[encidx * 100 + idx].ele =
+                      response.data.results[idx].elevation;
+                  }
+                  if (encidx === encpaths.length - 1) {
+                    asession.fixedElevation = true;
+                    asession = $scope.computeSessionFromGPXPoints(
+                      asession,
+                      gpxPoints,
+                      doSave
+                    );
+                  }
                 } else {
-                  if (curHeartRate > hrZ2) {
-                    idx = 2;
+                  console.log("Can t retrieve data from google elevation api");
+                }
+              },
+              function(error) {
+                console.log(error);
+              }
+            );
+          });
+        }
+
+        return asession;
+      };
+
+      $scope.computeSessionFromGPXData = function(asession, doSave) {
+        return $scope.computeSessionSimplifyAndFixElevation(asession, doSave);
+      };
+
+      $scope.recomputeEverythings = function() {
+        $scope.sessionsIndex = undefined;
+        $scope.sessionsIndexLength = 0;
+        $scope.sortedSessionsIndex = undefined;
+        $scope.loadAllJsonSessions($scope.dataPath).then(function(fullyLoaded) {
+          for (var recid in $scope.sessions) {
+            if ($scope.sessions.hasOwnProperty(recid)) {
+              $scope.computeSessionFromGPXData($scope.sessions[recid], true);
+            }
+          }
+          $ionicPopup.alert({
+            title: $scope.translateFilter("_recompute_end_title"),
+            template: $scope.translateFilter("_recompute_end_text")
+          });
+        });
+      };
+
+      $scope.computeSessionFromGPXPoints = function(session, gpxPoints, doSave) {
+        console.debug("computeSessionFromGPXPoints");
+        var hrZ1 =
+          parseInt($scope.prefs.heartratemin) +
+          parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.6;
+        var hrZ2 =
+          parseInt($scope.prefs.heartratemin) +
+          parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.7;
+        var hrZ3 =
+          parseInt($scope.prefs.heartratemin) +
+          parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.8;
+        var hrZ4 =
+          parseInt($scope.prefs.heartratemin) +
+          parseInt($scope.prefs.heartratemax - $scope.prefs.heartratemin) * 0.9;
+        var hrZ = [0, 0, 0, 0, 0];
+        var hr_color = 0;
+        session.hhr_colors = [
+          "#dcdcdc",
+          "#97BBCD",
+          "#46BFBD",
+          "#FDB45C",
+          "#F7464A"
+        ];
+        session.hr_colors = [
+          "rgba(220,220,220,0.5)",
+          "rgba(151, 187, 205, 0.5)",
+          "rgba(70, 191, 189, 0.5)",
+          "rgba(253, 180, 92, 0.5)",
+          "rgba(247, 70, 74, 0.5)"
+        ];
+        session.hhr_colors = [
+          {
+            fillColor: "rgba(220,220,220,0.5)",
+            strokeColor: "rgba(220,220,220,0.7)"
+          },
+          {
+            fillColor: "rgba(151, 187, 205, 0.5)",
+            strokeColor: "rgba(151, 187, 205, 0.7)"
+          },
+          {
+            fillColor: "rgba(70, 191, 189, 0.5)",
+            strokeColor: "rgba(70, 191, 189, 0.7)"
+          },
+          {
+            fillColor: "rgba(253, 180, 92, 0.5)",
+            strokeColor: "rgba(253, 180, 92, 0.7)"
+          },
+          {
+            fillColor: "rgba(247, 70, 74, 0.5",
+            strokeColor: "rgba(247, 70, 74, 0.7"
+          }
+        ];
+
+        //Max and min for leaflet and ele
+        var minHeight = gpxPoints[0].ele;
+        var maxHeight = minHeight;
+        var lonMin = gpxPoints[0].lng;
+        var lonMax = lonMin;
+        var latMax = gpxPoints[0].lat;
+        var latMin = latMax;
+        var eleDown = 0;
+        var eleUp = 0;
+        var maxHeartRate = 0;
+
+        //For calc
+        var curLat = gpxPoints[0].lat;
+        var curLng = gpxPoints[0].lng;
+        var curDate = gpxPoints[0].timestamp;
+        var curEle = gpxPoints[0].ele;
+        var curHeartRate = gpxPoints[0].hr;
+        var curAcc = gpxPoints[0].accuracy;
+        var curCadence = gpxPoints[0].cadence;
+        var curPower = gpxPoints[0].power;
+        var curStryde = gpxPoints[0].stryde;
+
+        var oldLat = curLat;
+        var oldLng = curLng;
+        var oldDate = curDate;
+        var oldEle = curEle;
+
+        var timeStartTmp = new Date(gpxPoints[0].timestamp);
+        var timeEndTmp = 0;
+
+        var mz = 1;
+        var dTemp = 0;
+        var dTotal = 0;
+        var dMaxTemp = 1000; // kilometer marker
+        var stepDetails = [];
+
+        var mz2 = 1;
+        var eleStartTmp = curEle;
+        var heartRatesTmp = [];
+        var heartRatesTmp2 = [];
+        var cadenceTmp = [];
+        var cadenceTmp2 = [];
+        var powerTmp = [];
+        var powerTmp2 = [];
+        var strydeTmp = [];
+        var strydeTmp2 = [];
+        var dTemp2 = 0;
+        var smallStepDetail = [];
+        var timeStartTmp2 = new Date(gpxPoints[0].timestamp);
+        var timeEndTmp2 = 0;
+        var dMaxTemp2 = 250;
+
+        var paths = {};
+        paths.p1 = {
+          color: "#3F51B5",
+          weight: 2,
+          latlngs: []
+        };
+        var markers = {};
+        markers.s = {
+          lat: curLat,
+          lng: curLng,
+          icon: {
+            type: "div",
+            className: "leaflet-circle-marker-start",
+            html: "S",
+            iconSize: [20, 20]
+          },
+          message: "S",
+          draggable: false,
+          opacity: 0.8
+        };
+        markers.e = {
+          lat: gpxPoints[gpxPoints.length - 1].lat,
+          lng: gpxPoints[gpxPoints.length - 1].lng,
+          icon: {
+            type: "div",
+            className: "leaflet-circle-marker-end",
+            html: "E",
+            iconSize: [20, 20]
+          },
+          message: "S",
+          draggable: false,
+          opacity: 0.8
+        };
+        //var dists = [];
+        var gpxspeedtmp;
+        var gpxpacetmp;
+        var timeDiff;
+        var dLat;
+        var dLon;
+        var dLat1;
+        var dLat2;
+        var dtd;
+        var dspeed;
+        var a, c, d;
+        var idx = 0;
+        var dwithoutpause = 0;
+
+        for (var p = 0; p < gpxPoints.length; p++) {
+          curLat = gpxPoints[p].lat;
+          curLng = gpxPoints[p].lng;
+          curEle = gpxPoints[p].ele;
+          curDate = gpxPoints[p].timestamp;
+          curHeartRate = gpxPoints[p].hr;
+          curAcc = gpxPoints[p].accuracy;
+          curCadence = gpxPoints[p].cadence;
+          curPower = gpxPoints[p].power;
+          curStryde = gpxPoints[p].stryde;
+          //Distances
+          dLat = (curLat - oldLat) * Math.PI / 180;
+          dLon = (curLng - oldLng) * Math.PI / 180;
+          dLat1 = oldLat * Math.PI / 180;
+          dLat2 = curLat * Math.PI / 180;
+          a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(dLat1) *
+              Math.cos(dLat1) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2);
+          c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          d = 6371 * c;
+          //Speed between this and previous point
+          dtd = new Date(curDate) - new Date(oldDate);
+          dspeed = Math.round(d * 100) / 100 / (dtd / 1000 / 60 / 60);
+
+          console.log(d + ":" + curAcc);
+
+          if (d < 0.0001) {
+            console.log("stop point:" + d);
+          } else {
+            //Leaflet
+            paths.p1.latlngs.push({
+              lat: curLat,
+              lng: curLng
+            });
+            if (curLat < latMin) {
+              latMin = curLat;
+            }
+            if (curLat > latMax) {
+              latMax = curLat;
+            }
+            if (curLng < lonMin) {
+              lonMin = curLng;
+            }
+            if (curLng > lonMax) {
+              lonMax = curLng;
+            }
+
+            //Max elevation
+            if (curEle > maxHeight) {
+              maxHeight = curEle;
+            }
+            if (curEle < minHeight) {
+              minHeight = curEle;
+            }
+            if (curHeartRate > maxHeartRate) {
+              {
+                maxHeartRate = curHeartRate;
+              }
+            }
+
+            if (p > 0) {
+              //Time without same
+              if (dspeed > 0.001) {
+                console.log(dspeed);
+                dwithoutpause += dtd;
+              }
+
+              dTotal += d;
+              gpxPoints[p].dist = dTotal;
+
+              if (curHeartRate) {
+                heartRatesTmp.push(curHeartRate);
+                heartRatesTmp2.push(curHeartRate);
+
+                if (curHeartRate > hrZ4) {
+                  idx = 4;
+                } else {
+                  if (curHeartRate > hrZ3) {
+                    idx = 3;
                   } else {
-                    if (curHeartRate > hrZ1) {
-                      idx = 1;
+                    if (curHeartRate > hrZ2) {
+                      idx = 2;
                     } else {
-                      idx = 0;
+                      if (curHeartRate > hrZ1) {
+                        idx = 1;
+                      } else {
+                        idx = 0;
+                      }
                     }
                   }
                 }
+                hrZ[idx] += dtd / 60000;
               }
-              hrZ[idx] += dtd / 60000;
-            }
 
-            if (curPower) {
-              powerTmp.push(curPower);
-              powerTmp2.push(curPower);
-            }
+              if (curPower) {
+                powerTmp.push(curPower);
+                powerTmp2.push(curPower);
+              }
 
-            if (curCadence) {
-              cadenceTmp.push(curCadence);
-              cadenceTmp2.push(curCadence);
-            }
+              if (curCadence) {
+                cadenceTmp.push(curCadence);
+                cadenceTmp2.push(curCadence);
+              }
 
-            if (curStryde) {
-              strydeTmp.push(curStryde);
-              strydeTmp2.push(curStryde);
-            }
+              if (curStryde) {
+                strydeTmp.push(curStryde);
+                strydeTmp2.push(curStryde);
+              }
 
-            dTemp += d * 1000;
-            if ((dTotal - (mz - 1)) * 1000 >= dMaxTemp) {
-              markers[mz] = {
-                lat: curLat,
-                lng: curLng,
-                icon: {
-                  type: "div",
-                  className: "leaflet-circle-marker",
-                  html: mz,
-                  iconSize: [20, 20]
-                },
-                message: mz + " Km(s)",
-                draggable: false,
-                opacity: 0.8
-              };
+              dTemp += d * 1000;
+              if ((dTotal - (mz - 1)) * 1000 >= dMaxTemp) {
+                markers[mz] = {
+                  lat: curLat,
+                  lng: curLng,
+                  icon: {
+                    type: "div",
+                    className: "leaflet-circle-marker",
+                    html: mz,
+                    iconSize: [20, 20]
+                  },
+                  message: mz + " Km(s)",
+                  draggable: false,
+                  opacity: 0.8
+                };
+                timeEndTmp = new Date(gpxPoints[p].timestamp);
+                timeDiff = timeEndTmp - timeStartTmp;
+                gpxpacetmp = timeDiff / (dTemp / 1000);
+                gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
+                gpxspeedtmp =
+                  Math.round(dTemp / 1000 * 100) /
+                  100 /
+                  (timeDiff / 1000 / 60 / 60);
+                gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
+                stepDetails.push({
+                  pace: new Date(gpxpacetmp),
+                  speed: gpxspeedtmp,
+                  km: mz * dMaxTemp / 1000,
+                  hr: average(heartRatesTmp, 0),
+                  cadence: average(cadenceTmp, 0),
+                  power: average(powerTmp, 0),
+                  stryde: average(strydeTmp, 1)
+                });
+                timeStartTmp = new Date(gpxPoints[p].timestamp);
+                mz++;
+                dTemp = 0;
+                heartRatesTmp = [];
+                powerTmp = [];
+                cadenceTmp = [];
+              }
+              dTemp2 += d * 1000;
+              if (dTotal * 1000 - mz2 * 250 >= dMaxTemp2) {
+                timeEndTmp2 = new Date(gpxPoints[p].timestamp);
+                timeDiff = timeEndTmp2 - timeStartTmp2;
+                gpxpacetmp = timeDiff / (dTemp / 1000);
+                gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
+                gpxspeedtmp =
+                  Math.round(dTemp2 / 1000 * 100) /
+                  100 /
+                  (timeDiff / 1000 / 60 / 60);
+                gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
+                smallStepDetail.push({
+                  pace: new Date(gpxpacetmp),
+                  speed: gpxspeedtmp,
+                  km: mz2 * dMaxTemp2 / 10 / 100,
+                  ele: (eleStartTmp + curEle) / 2,
+                  hr: average(heartRatesTmp2, 0),
+                  cadence: average(cadenceTmp2, 0),
+                  power: average(powerTmp2, 0),
+                  stryde: average(strydeTmp2, 1)
+                });
+                timeStartTmp2 = new Date(gpxPoints[p].timestamp);
+                mz2++;
+                dTemp2 = 0;
+                eleStartTmp = curEle;
+                heartRatesTmp2 = [];
+              }
+            }
+            if (gpxPoints.length - 1 === p) {
               timeEndTmp = new Date(gpxPoints[p].timestamp);
               timeDiff = timeEndTmp - timeStartTmp;
               gpxpacetmp = timeDiff / (dTemp / 1000);
@@ -680,783 +734,734 @@ angular
               stepDetails.push({
                 pace: new Date(gpxpacetmp),
                 speed: gpxspeedtmp,
-                km: mz * dMaxTemp / 1000,
+                km: Math.round(dTotal * 10) / 10,
                 hr: average(heartRatesTmp, 0),
                 cadence: average(cadenceTmp, 0),
                 power: average(powerTmp, 0),
                 stryde: average(strydeTmp, 1)
               });
-              timeStartTmp = new Date(gpxPoints[p].timestamp);
-              mz++;
-              dTemp = 0;
-              heartRatesTmp = [];
-              powerTmp = [];
-              cadenceTmp = [];
-            }
-            dTemp2 += d * 1000;
-            if (dTotal * 1000 - mz2 * 250 >= dMaxTemp2) {
               timeEndTmp2 = new Date(gpxPoints[p].timestamp);
               timeDiff = timeEndTmp2 - timeStartTmp2;
-              gpxpacetmp = timeDiff / (dTemp / 1000);
-              gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
-              gpxspeedtmp =
-                Math.round(dTemp2 / 1000 * 100) /
-                100 /
-                (timeDiff / 1000 / 60 / 60);
-              gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
-              smallStepDetail.push({
-                pace: new Date(gpxpacetmp),
-                speed: gpxspeedtmp,
-                km: mz2 * dMaxTemp2 / 10 / 100,
-                ele: (eleStartTmp + curEle) / 2,
-                hr: average(heartRatesTmp2, 0),
-                cadence: average(cadenceTmp2, 0),
-                power: average(powerTmp2, 0),
-                stryde: average(strydeTmp2, 1)
-              });
-              timeStartTmp2 = new Date(gpxPoints[p].timestamp);
-              mz2++;
-              dTemp2 = 0;
-              eleStartTmp = curEle;
-              heartRatesTmp2 = [];
-            }
-          }
-          if (gpxPoints.length - 1 === p) {
-            timeEndTmp = new Date(gpxPoints[p].timestamp);
-            timeDiff = timeEndTmp - timeStartTmp;
-            gpxpacetmp = timeDiff / (dTemp / 1000);
-            gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
-            gpxspeedtmp =
-              Math.round(dTemp / 1000 * 100) /
-              100 /
-              (timeDiff / 1000 / 60 / 60);
-            gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
-            stepDetails.push({
-              pace: new Date(gpxpacetmp),
-              speed: gpxspeedtmp,
-              km: Math.round(dTotal * 10) / 10,
-              hr: average(heartRatesTmp, 0),
-              cadence: average(cadenceTmp, 0),
-              power: average(powerTmp, 0),
-              stryde: average(strydeTmp, 1)
-            });
-            timeEndTmp2 = new Date(gpxPoints[p].timestamp);
-            timeDiff = timeEndTmp2 - timeStartTmp2;
-            if (timeDiff > 0) {
-              gpxpacetmp = timeDiff / (dTemp / 1000);
-              gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
-              gpxspeedtmp =
-                Math.round(dTemp2 / 1000 * 100) /
-                100 /
-                (timeDiff / 1000 / 60 / 60);
-              gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
-              smallStepDetail.push({
-                pace: new Date(gpxpacetmp),
-                speed: gpxspeedtmp,
-                km: Math.round(dTotal * 10) / 10,
-                ele: (eleStartTmp + curEle) / 2,
-                hr: average(heartRatesTmp2, 0),
-                cadence: average(cadenceTmp2, 0),
-                power: average(powerTmp2, 0),
-                stryde: average(strydeTmp2, 1)
-              });
-            }
-          }
-        }
-        oldLat = curLat;
-        oldLng = curLng;
-        oldDate = curDate;
-        oldEle = curEle;
-      }
-
-      //Date
-      session.date = moment(new Date(gpxPoints[0].timestamp)).format("llll");
-
-      //Points
-      session.gpxPoints = gpxPoints;
-
-      if (session.type === undefined) {
-        session.type = "Run";
-      }
-
-      //Maps markers
-      if (session.map === undefined) {
-        session.map = {
-          center: {
-            lat: 48,
-            lng: 4,
-            zoom: 5,
-            autoDiscover: false
-          },
-          paths: {},
-          bounds: {},
-          controls: {
-            scale: true
-          },
-          markers: {},
-          tiles: {
-            url: "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          }
-        };
-      }
-      session.map.markers = markers;
-      session.map.paths = paths;
-
-      //Maps bounds
-      session.map.bounds = leafletBoundsHelpers.createBoundsFromArray([
-        [latMin, lonMin],
-        [latMax, lonMax]
-      ]);
-      session.map.defaults = {
-        scrollWheelZoom: false
-      };
-
-      //Pace by km
-      session.paceDetails = stepDetails;
-
-      //Heart Rate OK ?
-      if (
-        hrZ[0] === 0 &&
-        hrZ[1] === 0 &&
-        hrZ[2] === 0 &&
-        hrZ[3] === 0 &&
-        hrZ[4] === 0
-      ) {
-        session.heartRate = false;
-      } else {
-        session.heartRate = true;
-      }
-
-      //Version of computation
-      session.version = $scope._version;
-      //Graph speed / ele
-      session.chart_options = {
-        animation: false,
-        showTooltips: false,
-        showScale: true,
-        scaleIntegersOnly: true,
-        bezierCurve: true,
-        pointDot: false,
-        responsive: true,
-        scaleUse2Y: true,
-        legendTemplate:
-          "<ul class='<%=name.toLowerCase()%>-legend'><% for (var i=0; i<datasets.length; i++){%><li><span style='background-color:<%=datasets[i].strokeColor%>'></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>"
-      };
-      session.chart2_options = {
-        animation: false,
-        showTooltips: false,
-        showScale: true,
-        scaleIntegersOnly: true,
-        bezierCurve: true,
-        pointDot: false,
-        responsive: true,
-        legendTemplate: "" //'<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].strokeColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>'
-      };
-      session.chart4_options = {
-        animation: false,
-        showTooltips: false,
-        showScale: true,
-        scaleIntegersOnly: true,
-        bezierCurve: true,
-        pointDot: false,
-        responsive: true,
-        legendTemplate: "" //'<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].strokeColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>'
-      };
-      session.chart3_labels = [
-        $scope.translateFilter("_hr_zone0") + " < 60%",
-        $scope.translateFilter("_hr_zone1") + " > 60%",
-        $scope.translateFilter("_hr_zone2") + " > 70%",
-        $scope.translateFilter("_hr_zone3") + " > 80%",
-        $scope.translateFilter("_hr_zone4") + " > 90%"
-      ];
-      for (var i = 0; i < hrZ.length; i++) {
-        hrZ[i] = hrZ[i].toFixed(1);
-      }
-      session.chart3_data = hrZ;
-
-      session.chart_labels = [];
-      session.chart2_labels = [];
-      session.chart4_labels = [];
-      session.chart_data = [[], []];
-      session.chart2_data = [[]];
-      session.chart4_data = [[]];
-      session.chart2_type = "Heartrate";
-      session.chart_series = [
-        $scope.translateFilter("_speed_kph"),
-        $scope.translateFilter("_altitude_meters")
-      ];
-      session.chart2_series = [
-        $scope.translateFilter("_speed_kph"),
-        $scope.translateFilter("_bpms_label")
-      ];
-      session.chart4_type = "Heartrate";
-      session.chart4_series = [
-        $scope.translateFilter("_altitude_meters"),
-        $scope.translateFilter("_bpms_label")
-      ];
-      session.avg_hr = [];
-      session.avg_cadence = [];
-      session.avg_power = [];
-      session.chart3_type = "DoughnutWithValue";
-      smallStepDetail.map(function(step) {
-        if (step.hr > hrZ4) {
-          hr_color = 4;
-        } else {
-          if (step.hr > hrZ3) {
-            hr_color = 3;
-          } else {
-            if (step.hr > hrZ2) {
-              hr_color = 2;
-            } else {
-              if (step.hr > hrZ1) {
-                hr_color = 1;
-              } else {
-                hr_color = 0;
-              }
-            }
-          }
-        }
-        if (Math.round(step.km) === step.km) {
-          session.chart_labels.push(step.km);
-          session.chart2_labels.push(
-            step.km + "|" + session.hr_colors[hr_color]
-          );
-          session.chart4_labels.push(
-            step.km + "|" + session.hr_colors[hr_color]
-          );
-        } else {
-          session.chart_labels.push("");
-          session.chart2_labels.push("|" + session.hr_colors[hr_color]);
-          session.chart4_labels.push("|" + session.hr_colors[hr_color]);
-        }
-
-        session.chart_data[0].push(step.speed);
-        session.chart_data[1].push(step.ele);
-        session.chart2_data[0].push(step.speed);
-        session.chart4_data[0].push(step.ele);
-
-        //Calc avg hr
-        session.avg_hr.push(step.hr);
-
-        //Calc avg power & cadence
-        session.avg_power.push(step.power);
-        session.avg_cadence.push(step.cadence);
-      });
-
-      session.avg_hr = average(session.avg_hr, 0);
-      session.avg_power = average(session.avg_power, 0);
-      session.avg_cadence = average(session.avg_cadence, 0);
-
-      session.chart3_options = {
-        animation: false,
-        animationEasing: "easeOutBounce",
-        showTooltips: true,
-        showScale: false,
-        showLegend: true,
-        scaleIntegersOnly: true,
-        responsive: true,
-        legendTemplate:
-          '<ul class="<%=name.toLowerCase()%>-legend"><% for (var i=0; i<segments.length; i++){%><li><span style="background-color:<%=segments[i].fillColor%>"></span><%if(segments[i].label){%><%=segments[i].label%><%}%></li><%}%></ul>',
-        averageValue: session.avg_hr
-      };
-
-      eleUp = 0; //parseFloat(elePoints[0][3]);
-      eleDown = 0; //parseFloat(elePoints[0][3]);
-      for (p = 0; p < gpxPoints.length; p++) {
-        curEle = gpxPoints[p].ele;
-        if (p > 0) {
-          oldEle = gpxPoints[p - 1].ele;
-          if (curEle > oldEle) {
-            eleUp += curEle - oldEle;
-          } else if (curEle < oldEle) {
-            eleDown += oldEle - curEle;
-          }
-        }
-      }
-
-      var gpxStart = gpxPoints[0].timestamp;
-      var gpxEnd = gpxPoints[gpxPoints.length - 1].timestamp;
-
-      var d1 = new Date(gpxStart);
-      var d2 = new Date(gpxEnd);
-      var miliseconds = d2 - d1;
-
-      var tmpMilliseconds = miliseconds;
-
-      var seconds = miliseconds / 1000;
-      var minutes = seconds / 60;
-      var hours = minutes / 60;
-      var days = hours / 24;
-
-      days = tmpMilliseconds / 1000 / 60 / 60 / 24;
-      days = Math.floor(days);
-
-      tmpMilliseconds = tmpMilliseconds - days * 24 * 60 * 60 * 1000;
-      hours = tmpMilliseconds / 1000 / 60 / 60;
-      hours = Math.floor(hours);
-
-      tmpMilliseconds = tmpMilliseconds - hours * 60 * 60 * 1000;
-      minutes = tmpMilliseconds / 1000 / 60;
-      minutes = Math.floor(minutes);
-
-      tmpMilliseconds = tmpMilliseconds - minutes * 60 * 1000;
-      seconds = tmpMilliseconds / 1000;
-      seconds = Math.floor(seconds);
-
-      var gpxpace = miliseconds / dTotal;
-      gpxpace = Math.round(gpxpace * 100) / 100 * 1;
-      gpxpace = new Date(gpxpace);
-
-      var gpxspeed =
-        Math.round(dTotal * 100) / 100 / (miliseconds / 1000 / 60 / 60);
-      gpxspeed = Math.round(gpxspeed * 100) / 100;
-      var gpxspeedwithoutpause =
-        Math.round(
-          Math.round(dTotal * 100) /
-            100 /
-            (dwithoutpause / 1000 / 60 / 60) *
-            100
-        ) / 100;
-      var gpxpacewithoutpause = new Date(dwithoutpause / dTotal);
-      session.gpxMaxHeight = Math.round(maxHeight);
-      session.gpxMinHeight = Math.round(minHeight);
-      session.distance = Math.round(dTotal * 100) / 100;
-      session.pace = gpxpace;
-      session.speed = gpxspeed;
-      session.speedinmvt = gpxspeedwithoutpause;
-      session.paceinmvt = gpxpacewithoutpause;
-      session.eleUp = Math.round(eleUp);
-      session.eleDown = Math.round(eleDown);
-      session.distk = session.distance.toFixed(0);
-      session.duration = new Date(d2 - d1);
-      session.start = gpxPoints[0].timestamp;
-      session.end = gpxPoints[gpxPoints.length - 1].timestamp;
-      session.overnote = (
-        parseInt(gpxspeedwithoutpause) *
-          1000 *
-          (miliseconds / 1000 / 60) *
-          0.000006 +
-        (Math.round(eleUp) - Math.round(eleDown)) * 0.04
-      ).toFixed(1);
-      $scope.sessions[session.recclicked] = session;
-      try {
-        var sf = new SessionFactory();
-        sf.saveToFile(session, $scope.dataPath).then(function() {
-          $scope.updateIndex(session);
-        });
-      } catch (err) {
-        console.warn(err);
-      }
-
-      return session;
-    };
-
-    // remove file system entry
-    $scope.deleteFileSession = function(recid) {
-      if ($scope.platform === "Browser") {
-        //$scope.writeSessionsToFile($scope.sessions);
-        $scope.storageSetObj("sessions", $scope.sessions);
-        $scope.computeResumeGraph();
-      } else {
-        var path = $scope.dataPath + "sessions";
-        $scope.remove_file = function(entry) {
-          entry.remove(function() {
-            $scope.computeResumeGraph();
-            console.log(entry.toURI(), null, "Session deleted");
-          }, null);
-        };
-
-        // retrieve a file and truncate it
-        window.resolveLocalFileSystemURL(
-          path,
-          function(dirEntry) {
-            dirEntry.getFile(
-              recid + ".json",
-              {
-                create: false
-              },
-              $scope.remove_file,
-              null
-            );
-          },
-          function(err) {
-            console.error(err);
-          }
-        );
-      }
-    };
-
-    $scope.migrateFromOldSessionFile = function() {
-      // Migration fron one file format
-      console.error("Error? Migrating from old format");
-      if ($scope.platform === "Browser") {
-        return;
-      }
-      $scope.loadFromFile(
-        "sessions.gpxs",
-        function(datas) {
-          $scope.sessions = datas;
-          $scope.fullyLoaded = true;
-        },
-        function(err) {
-          console.error("migrateSessionsFromFile failed :" + err);
-          $timeout(function() {
-            try {
-              $scope.sessions = JSON.parse(
-                localStorage.getItem("sessions"),
-                $scope.dateTimeReviver
-              );
-            } catch (err) {}
-            $scope.fullyLoaded = true;
-          }, 100);
-        }
-      );
-    };
-
-    $scope.loadAllJsonSessions = function(dataPath) {
-      var deferred = $q.defer();
-      var fs = new FileFactory();
-      var path;
-      $scope.sessions = {};
-
-      try {
-        path = dataPath + "sessions";
-      } catch (err) {
-        console.warn(err);
-        return deferred.failed;
-      }
-
-      fs.getEntries(path).then(
-        function(result) {
-          result = result.filter(function(i) {
-            if (i.name.slice(-5) === ".json") {
-              return i;
-            }
-          });
-
-          // Check if conform to the index
-          console.log($scope.resume);
-          console.debug("debug resume ^");
-          if (
-            ($scope.sortedSessionsIndex !== undefined) &
-            ($scope.resume !== undefined)
-          ) {
-            if (
-              (result.length === $scope.sortedSessionsIndex.length) &
-              ($scope.resume.avspeed !== "NaN") &
-              ($scope.resume.avdistance != "NaN")
-            ) {
-              console.log("Resume and Index OK, not loading sessions");
-              if (navigator && navigator.splashscreen) {
-                navigator.splashscreen.hide();
-              }
-              return deferred.promise;
-            }
-          }
-
-          console.log("Loading all sessions");
-          // Else load all sessions
-          $scope.session_files = result.sort(function(a, b) {
-            var x = parseInt(a.name.slice(0, -5));
-            var y = parseInt(b.name.slice(0, -5));
-            return (x < y ? -1 : x > y ? 1 : 0) * -1;
-          });
-
-          var idx = 0;
-          var sf = new SessionFactory();
-          $scope.session_files.forEach(function(file) {
-            console.debug(file.name);
-            if (file.name.slice(-5) === ".json") {
-              $timeout(function() {
-                sf.loadFromFile(file.name.slice(0, -5)).then(function(session) {
-                  if (typeof session.duration === "string") {
-                    session.duration = new Date(session.duration);
-                  }
-                  if (typeof session.pace === "string") {
-                    session.pace = new Date(session.pace);
-                  }
-
-                  $scope.sessions[session.recclicked] = session;
-
-                  $scope.updateIndex(session);
-                  if (
-                    Object.keys($scope.sessions).length ===
-                    $scope.session_files.length
-                  ) {
-                    //$scope.postLoadSessions();
-                    $scope.fullyLoaded = true;
-                    $scope.computeResumeGraph();
-                    $scope.cleanIndex();
-                    console.log("All sessions loaded");
-                    if (navigator && navigator.splashscreen) {
-                      navigator.splashscreen.hide();
-                    }
-                    deferred.resolve(true);
-                  }
+              if (timeDiff > 0) {
+                gpxpacetmp = timeDiff / (dTemp / 1000);
+                gpxpacetmp = Math.round(gpxpacetmp * 100) / 100 * 1;
+                gpxspeedtmp =
+                  Math.round(dTemp2 / 1000 * 100) /
+                  100 /
+                  (timeDiff / 1000 / 60 / 60);
+                gpxspeedtmp = Math.round(gpxspeedtmp * 100) / 100;
+                smallStepDetail.push({
+                  pace: new Date(gpxpacetmp),
+                  speed: gpxspeedtmp,
+                  km: Math.round(dTotal * 10) / 10,
+                  ele: (eleStartTmp + curEle) / 2,
+                  hr: average(heartRatesTmp2, 0),
+                  cadence: average(cadenceTmp2, 0),
+                  power: average(powerTmp2, 0),
+                  stryde: average(strydeTmp2, 1)
                 });
-              }, idx * 100);
-              idx += 1;
+              }
             }
-          });
-        },
-        function(error) {
-          console.error(error);
-          console.error("Load OLD SESSION FILE !!");
-          $scope.migrateFromOldSessionFile();
-          if (navigator && navigator.splashscreen) {
-            navigator.splashscreen.hide();
           }
+          oldLat = curLat;
+          oldLng = curLng;
+          oldDate = curDate;
+          oldEle = curEle;
         }
-      );
-      return deferred.promise;
-    };
 
-    $scope.importFIT = function(file) {
-      var deferred = $q.defer();
+        //Date
+        session.date = moment(new Date(gpxPoints[0].timestamp)).format("llll");
 
-      console.log("importing FIT:" + file);
-      var reader = new FileReader();
+        //Points
+        session.gpxPoints = gpxPoints;
 
-      // Require the moduleP
-      var EasyFit = window.easyFit.default;
+        if (session.type === undefined) {
+          session.type = "Run";
+        }
 
-      reader.onloadend = function() {
-        // Create a EasyFit instance (options argument is optional)
-        var easyFit = new EasyFit({
-          force: true,
-          speedUnit: "km/h",
-          lengthUnit: "km",
-          temperatureUnit: "celcius",
-          elapsedRecordField: true,
-          mode: "cascade"
-        });
+        //Maps markers
+        if (session.map === undefined) {
+          session.map = {
+            center: {
+              lat: 48,
+              lng: 4,
+              zoom: 5,
+              autoDiscover: false
+            },
+            paths: {},
+            bounds: {},
+            controls: {
+              scale: true
+            },
+            markers: {},
+            tiles: {
+              url: "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            }
+          };
+        }
+        session.map.markers = markers;
+        session.map.paths = paths;
 
-        // Parse your file
-        easyFit.parse(this.result, function(error, data) {
-          // Handle result of parse method
-          if (error) {
-            console.log(error);
+        //Maps bounds
+        session.map.bounds = leafletBoundsHelpers.createBoundsFromArray([
+          [latMin, lonMin],
+          [latMax, lonMax]
+        ]);
+        session.map.defaults = {
+          scrollWheelZoom: false
+        };
+
+        //Pace by km
+        session.paceDetails = stepDetails;
+
+        //Heart Rate OK ?
+        if (
+          hrZ[0] === 0 &&
+          hrZ[1] === 0 &&
+          hrZ[2] === 0 &&
+          hrZ[3] === 0 &&
+          hrZ[4] === 0
+        ) {
+          session.heartRate = false;
+        } else {
+          session.heartRate = true;
+        }
+
+        //Version of computation
+        session.version = $scope._version;
+        //Graph speed / ele
+        session.chart_options = {
+          animation: false,
+          showTooltips: false,
+          showScale: true,
+          scaleIntegersOnly: true,
+          bezierCurve: true,
+          pointDot: false,
+          responsive: true,
+          scaleUse2Y: true,
+          legendTemplate:
+            "<ul class='<%=name.toLowerCase()%>-legend'><% for (var i=0; i<datasets.length; i++){%><li><span style='background-color:<%=datasets[i].strokeColor%>'></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>"
+        };
+        session.chart2_options = {
+          animation: false,
+          showTooltips: false,
+          showScale: true,
+          scaleIntegersOnly: true,
+          bezierCurve: true,
+          pointDot: false,
+          responsive: true,
+          legendTemplate: "" //'<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].strokeColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>'
+        };
+        session.chart4_options = {
+          animation: false,
+          showTooltips: false,
+          showScale: true,
+          scaleIntegersOnly: true,
+          bezierCurve: true,
+          pointDot: false,
+          responsive: true,
+          legendTemplate: "" //'<ul class=\"<%=name.toLowerCase()%>-legend\"><% for (var i=0; i<datasets.length; i++){%><li><span style=\"background-color:<%=datasets[i].strokeColor%>\"></span><%if(datasets[i].label){%><%=datasets[i].label%><%}%></li><%}%></ul>'
+        };
+        session.chart3_labels = [
+          $scope.translateFilter("_hr_zone0") + " < 60%",
+          $scope.translateFilter("_hr_zone1") + " > 60%",
+          $scope.translateFilter("_hr_zone2") + " > 70%",
+          $scope.translateFilter("_hr_zone3") + " > 80%",
+          $scope.translateFilter("_hr_zone4") + " > 90%"
+        ];
+        for (var i = 0; i < hrZ.length; i++) {
+          hrZ[i] = hrZ[i].toFixed(1);
+        }
+        session.chart3_data = hrZ;
+
+        session.chart_labels = [];
+        session.chart2_labels = [];
+        session.chart4_labels = [];
+        session.chart_data = [[], []];
+        session.chart2_data = [[]];
+        session.chart4_data = [[]];
+        session.chart2_type = "Heartrate";
+        session.chart_series = [
+          $scope.translateFilter("_speed_kph"),
+          $scope.translateFilter("_altitude_meters")
+        ];
+        session.chart2_series = [
+          $scope.translateFilter("_speed_kph"),
+          $scope.translateFilter("_bpms_label")
+        ];
+        session.chart4_type = "Heartrate";
+        session.chart4_series = [
+          $scope.translateFilter("_altitude_meters"),
+          $scope.translateFilter("_bpms_label")
+        ];
+        session.avg_hr = [];
+        session.avg_cadence = [];
+        session.avg_power = [];
+        session.chart3_type = "DoughnutWithValue";
+        smallStepDetail.map(function(step) {
+          if (step.hr > hrZ4) {
+            hr_color = 4;
           } else {
-            for (var sessions_idx in data.activity.sessions) {
-              var asession = {};
-              asession.gpxData = [];
-
-              for (var lap_idx in data.activity.sessions[sessions_idx].laps) {
-                for (var record_idx in data.activity.sessions[sessions_idx]
-                  .laps[lap_idx].records) {
-                  var pnt =
-                    data.activity.sessions[sessions_idx].laps[lap_idx].records[
-                      record_idx
-                    ];
-                  asession.gpxData.push([
-                    pnt.position_lat,
-                    pnt.position_long,
-                    pnt.timestamp,
-                    pnt.altitude,
-                    pnt.heart_rate,
-                    0,
-                    pnt.cadence,
-                    pnt.power,
-                    pnt.vertical_oscillation
-                  ]);
+            if (step.hr > hrZ3) {
+              hr_color = 3;
+            } else {
+              if (step.hr > hrZ2) {
+                hr_color = 2;
+              } else {
+                if (step.hr > hrZ1) {
+                  hr_color = 1;
+                } else {
+                  hr_color = 0;
                 }
               }
-
-              asession.recclicked = new Date(asession.gpxData[0][2]).getTime();
-              //Save session already compute session
-              $scope.saveSession(asession);
-              deferred.resolve();
             }
           }
+          if (Math.round(step.km) === step.km) {
+            session.chart_labels.push(step.km);
+            session.chart2_labels.push(
+              step.km + "|" + session.hr_colors[hr_color]
+            );
+            session.chart4_labels.push(
+              step.km + "|" + session.hr_colors[hr_color]
+            );
+          } else {
+            session.chart_labels.push("");
+            session.chart2_labels.push("|" + session.hr_colors[hr_color]);
+            session.chart4_labels.push("|" + session.hr_colors[hr_color]);
+          }
+
+          session.chart_data[0].push(step.speed);
+          session.chart_data[1].push(step.ele);
+          session.chart2_data[0].push(step.speed);
+          session.chart4_data[0].push(step.ele);
+
+          //Calc avg hr
+          session.avg_hr.push(step.hr);
+
+          //Calc avg power & cadence
+          session.avg_power.push(step.power);
+          session.avg_cadence.push(step.cadence);
         });
-      };
 
-      reader.readAsArrayBuffer(file);
-      return deferred.promise;
-    };
+        session.avg_hr = average(session.avg_hr, 0);
+        session.avg_power = average(session.avg_power, 0);
+        session.avg_cadence = average(session.avg_cadence, 0);
 
-    $scope.importJSON = function(file) {
-      var deferred = $q.defer();
+        session.chart3_options = {
+          animation: false,
+          animationEasing: "easeOutBounce",
+          showTooltips: true,
+          showScale: false,
+          showLegend: true,
+          scaleIntegersOnly: true,
+          responsive: true,
+          legendTemplate:
+            '<ul class="<%=name.toLowerCase()%>-legend"><% for (var i=0; i<segments.length; i++){%><li><span style="background-color:<%=segments[i].fillColor%>"></span><%if(segments[i].label){%><%=segments[i].label%><%}%></li><%}%></ul>',
+          averageValue: session.avg_hr
+        };
 
-      console.log("importing JSON:" + file);
-      var reader = new FileReader();
-
-      reader.onloadend = function() {
-        var asession = JSON.parse(this.result);
-        //Save session already compute session
-        $scope.saveSession(asession);
-        deferred.resolve();
-      };
-
-      reader.readAsText(file);
-
-      return deferred.promise;
-    };
-
-    $scope.importGPX = function(file) {
-      var deferred = $q.defer();
-
-      console.log("importing GPX:" + file);
-      var reader = new FileReader();
-
-      reader.onloadend = function() {
-        var x2js = new X2JS();
-        var json = x2js.xml_str2json(this.result);
-
-        var gpxPoints = [];
-
-        if (json.gpx.trk.trkseg instanceof Array) {
-          json.gpx.trk.trkseg.map(function(item) {
-            gpxPoints = gpxPoints.concat(item.trkpt);
-          });
-        } else {
-          gpxPoints = json.gpx.trk.trkseg.trkpt;
+        eleUp = 0; //parseFloat(elePoints[0][3]);
+        eleDown = 0; //parseFloat(elePoints[0][3]);
+        for (p = 0; p < gpxPoints.length; p++) {
+          curEle = gpxPoints[p].ele;
+          if (p > 0) {
+            oldEle = gpxPoints[p - 1].ele;
+            if (curEle > oldEle) {
+              eleUp += curEle - oldEle;
+            } else if (curEle < oldEle) {
+              eleDown += oldEle - curEle;
+            }
+          }
         }
 
-        //NOW RECOMPUTE AND CREATE
-        var asession = {};
-        asession.gpxData = [];
+        var gpxStart = gpxPoints[0].timestamp;
+        var gpxEnd = gpxPoints[gpxPoints.length - 1].timestamp;
 
-        gpxPoints.map(function(item) {
-          var bpms;
-          var accuracy;
-          var power;
-          var cadence;
-          var stryde;
+        var d1 = new Date(gpxStart);
+        var d2 = new Date(gpxEnd);
+        var miliseconds = d2 - d1;
 
-          try {
-            bpms = parseFloat(item.extensions.TrackPointExtension.hr.__text);
-          } catch (exception) {
-            try {
-              bpms = parseFloat(item.extensions.hr.__text);
-            } catch (exception2) {
-              bpms = undefined;
-            }
-          }
-          try {
-            power = parseFloat(
-              item.extensions.TrackPointExtension.power.__text
-            );
-          } catch (exception) {
-            try {
-              power = parseFloat(item.extensions.power.__text);
-            } catch (exception2) {
-              power = undefined;
-            }
-          }
-          try {
-            cadence = parseFloat(
-              item.extensions.TrackPointExtension.cad.__text
-            );
-          } catch (exception) {
-            try {
-              cadence = parseFloat(item.extensions.cad.__text);
-            } catch (exception2) {
-              cadence = undefined;
-            }
-          }
-          try {
-            accuracy = parseFloat(
-              item.extensions.TrackPointExtension.accuracy.__text
-            );
-          } catch (exception) {
-            try {
-              accuracy = parseFloat(item.extensions.accuracy.__text);
-            } catch (exception2) {
-              accuracy = undefined;
-            }
-          }
-          try {
-            stryde = parseFloat(
-              item.extensions.TrackPointExtension.stryde.__text
-            );
-          } catch (exception) {
-            try {
-              stryde = parseFloat(item.extensions.stryde.__text);
-            } catch (exception2) {
-              stryde = undefined;
-            }
-          }
+        var tmpMilliseconds = miliseconds;
 
-          asession.gpxData.push([
-            item._lat,
-            item._lon,
-            item.time,
-            item.ele,
-            bpms,
-            accuracy,
-            cadence,
-            power,
-            stryde
-          ]);
-        });
+        var seconds = miliseconds / 1000;
+        var minutes = seconds / 60;
+        var hours = minutes / 60;
+        var days = hours / 24;
 
-        asession.recclicked = new Date(gpxPoints[0].time).getTime();
-        //Save session already compute session
-        $scope.saveSession(asession);
+        days = tmpMilliseconds / 1000 / 60 / 60 / 24;
+        days = Math.floor(days);
 
-        deferred.resolve();
+        tmpMilliseconds = tmpMilliseconds - days * 24 * 60 * 60 * 1000;
+        hours = tmpMilliseconds / 1000 / 60 / 60;
+        hours = Math.floor(hours);
+
+        tmpMilliseconds = tmpMilliseconds - hours * 60 * 60 * 1000;
+        minutes = tmpMilliseconds / 1000 / 60;
+        minutes = Math.floor(minutes);
+
+        tmpMilliseconds = tmpMilliseconds - minutes * 60 * 1000;
+        seconds = tmpMilliseconds / 1000;
+        seconds = Math.floor(seconds);
+
+        var gpxpace = miliseconds / dTotal;
+        gpxpace = Math.round(gpxpace * 100) / 100 * 1;
+        gpxpace = new Date(gpxpace);
+
+        var gpxspeed =
+          Math.round(dTotal * 100) / 100 / (miliseconds / 1000 / 60 / 60);
+        gpxspeed = Math.round(gpxspeed * 100) / 100;
+        var gpxspeedwithoutpause =
+          Math.round(
+            Math.round(dTotal * 100) /
+              100 /
+              (dwithoutpause / 1000 / 60 / 60) *
+              100
+          ) / 100;
+        var gpxpacewithoutpause = new Date(dwithoutpause / dTotal);
+        session.gpxMaxHeight = Math.round(maxHeight);
+        session.gpxMinHeight = Math.round(minHeight);
+        session.distance = Math.round(dTotal * 100) / 100;
+        session.pace = gpxpace;
+        session.speed = gpxspeed;
+        session.speedinmvt = gpxspeedwithoutpause;
+        session.paceinmvt = gpxpacewithoutpause;
+        session.eleUp = Math.round(eleUp);
+        session.eleDown = Math.round(eleDown);
+        session.distk = session.distance.toFixed(0);
+        session.duration = new Date(d2 - d1);
+        session.start = gpxPoints[0].timestamp;
+        session.end = gpxPoints[gpxPoints.length - 1].timestamp;
+        session.overnote = (
+          parseInt(gpxspeedwithoutpause) *
+            1000 *
+            (miliseconds / 1000 / 60) *
+            0.000006 +
+          (Math.round(eleUp) - Math.round(eleDown)) * 0.04
+        ).toFixed(1);
+        $scope.sessions[session.recclicked] = session;
+        try {
+          var sf = new SessionFactory();
+          sf.saveToFile(session, $scope.dataPath).then(function() {
+            $scope.updateIndex(session);
+          });
+        } catch (err) {
+          console.warn(err);
+        }
+
+        return session;
       };
 
-      reader.readAsText(file);
+      // remove file system entry
+      $scope.deleteFileSession = function(recid) {
+        if ($scope.platform === "Browser") {
+          //$scope.writeSessionsToFile($scope.sessions);
+          $scope.storageSetObj("sessions", $scope.sessions);
+          $scope.computeResumeGraph();
+        } else {
+          var path = $scope.dataPath + "sessions";
+          $scope.remove_file = function(entry) {
+            entry.remove(function() {
+              $scope.computeResumeGraph();
+              console.log(entry.toURI(), null, "Session deleted");
+            }, null);
+          };
 
-      return deferred.promise;
-    };
-
-    $scope.iosFilePicker = function() {
-      var p = [];
-
-      window.FilePicker.pickFile(
-        function(path) {
+          // retrieve a file and truncate it
           window.resolveLocalFileSystemURL(
             path,
-            function(fileEntry) {
-              fileEntry.file(function(file) {
-                if (file.name.slice(-4) == ".gpx") {
-                  p.push($scope.importGPX(file));
-                } else if (file.name.slice(-4) == ".fit") {
-                  p.push($scope.importFIT(file));
-                } else if (file.name.slice(-4) == "json") {
-                  p.push($scope.importJSON(file));
-                }
-              });
+            function(dirEntry) {
+              dirEntry.getFile(
+                recid + ".json",
+                {
+                  create: false
+                },
+                $scope.remove_file,
+                null
+              );
             },
             function(err) {
               console.error(err);
             }
           );
-        },
-        function(err) {
+        }
+      };
+
+      $scope.migrateFromOldSessionFile = function() {
+        // Migration fron one file format
+        console.error("Error? Migrating from old format");
+        if ($scope.platform === "Browser") {
+          return;
+        }
+        $scope.loadFromFile(
+          "sessions.gpxs",
+          function(datas) {
+            $scope.sessions = datas;
+            $scope.fullyLoaded = true;
+          },
+          function(err) {
+            console.error("migrateSessionsFromFile failed :" + err);
+            $timeout(function() {
+              try {
+                $scope.sessions = JSON.parse(
+                  localStorage.getItem("sessions"),
+                  $scope.dateTimeReviver
+                );
+              } catch (err) {}
+              $scope.fullyLoaded = true;
+            }, 100);
+          }
+        );
+      };
+
+      $scope.loadAllJsonSessions = function(dataPath) {
+        var deferred = $q.defer();
+        var fs = new FileFactory();
+        var path;
+        $scope.sessions = {};
+
+        try {
+          path = dataPath + "sessions";
+        } catch (err) {
+          console.warn(err);
+          return deferred.failed;
+        }
+
+        fs.getEntries(path).then(
+          function(result) {
+            result = result.filter(function(i) {
+              if (i.name.slice(-5) === ".json") {
+                return i;
+              }
+            });
+
+            // Check if conform to the index
+            console.log($scope.resume);
+            console.debug("debug resume ^");
+            if (
+              ($scope.sortedSessionsIndex !== undefined) &
+              ($scope.resume !== undefined)
+            ) {
+              if (
+                (result.length === $scope.sortedSessionsIndex.length) &
+                ($scope.resume.avspeed !== "NaN") &
+                ($scope.resume.avdistance != "NaN")
+              ) {
+                console.log("Resume and Index OK, not loading sessions");
+                if (navigator && navigator.splashscreen) {
+                  navigator.splashscreen.hide();
+                }
+                return deferred.promise;
+              }
+            }
+
+            console.log("Loading all sessions");
+            // Else load all sessions
+            $scope.session_files = result.sort(function(a, b) {
+              var x = parseInt(a.name.slice(0, -5));
+              var y = parseInt(b.name.slice(0, -5));
+              return (x < y ? -1 : x > y ? 1 : 0) * -1;
+            });
+
+            var idx = 0;
+            var sf = new SessionFactory();
+            $scope.session_files.forEach(function(file) {
+              console.debug(file.name);
+              if (file.name.slice(-5) === ".json") {
+                $timeout(function() {
+                  sf.loadFromFile(file.name.slice(0, -5)).then(function(session) {
+                    if (typeof session.duration === "string") {
+                      session.duration = new Date(session.duration);
+                    }
+                    if (typeof session.pace === "string") {
+                      session.pace = new Date(session.pace);
+                    }
+
+                    $scope.sessions[session.recclicked] = session;
+
+                    $scope.updateIndex(session);
+                    if (
+                      Object.keys($scope.sessions).length ===
+                      $scope.session_files.length
+                    ) {
+                      //$scope.postLoadSessions();
+                      $scope.fullyLoaded = true;
+                      $scope.computeResumeGraph();
+                      $scope.cleanIndex();
+                      console.log("All sessions loaded");
+                      if (navigator && navigator.splashscreen) {
+                        navigator.splashscreen.hide();
+                      }
+                      deferred.resolve(true);
+                    }
+                  });
+                }, idx * 100);
+                idx += 1;
+              }
+            });
+          },
+          function(error) {
+            console.error(error);
+            console.error("Load OLD SESSION FILE !!");
+            $scope.migrateFromOldSessionFile();
+            if (navigator && navigator.splashscreen) {
+              navigator.splashscreen.hide();
+            }
+          }
+        );
+        return deferred.promise;
+      };
+
+      $scope.importFIT = function(file) {
+        var deferred = $q.defer();
+
+        console.log("importing FIT:" + file);
+        var reader = new FileReader();
+
+        // Require the moduleP
+        var EasyFit = window.easyFit.default;
+
+        reader.onloadend = function() {
+          // Create a EasyFit instance (options argument is optional)
+          var easyFit = new EasyFit({
+            force: true,
+            speedUnit: "km/h",
+            lengthUnit: "km",
+            temperatureUnit: "celcius",
+            elapsedRecordField: true,
+            mode: "cascade"
+          });
+
+          // Parse your file
+          easyFit.parse(this.result, function(error, data) {
+            // Handle result of parse method
+            if (error) {
+              console.log(error);
+            } else {
+              for (var sessions_idx in data.activity.sessions) {
+                var asession = {};
+                asession.gpxData = [];
+
+                for (var lap_idx in data.activity.sessions[sessions_idx].laps) {
+                  for (var record_idx in data.activity.sessions[sessions_idx]
+                    .laps[lap_idx].records) {
+                    var pnt =
+                      data.activity.sessions[sessions_idx].laps[lap_idx].records[
+                        record_idx
+                      ];
+                    asession.gpxData.push([
+                      pnt.position_lat,
+                      pnt.position_long,
+                      pnt.timestamp,
+                      pnt.altitude,
+                      pnt.heart_rate,
+                      0,
+                      pnt.cadence,
+                      pnt.power,
+                      pnt.vertical_oscillation
+                    ]);
+                  }
+                }
+
+                asession.recclicked = new Date(asession.gpxData[0][2]).getTime();
+                //Save session already compute session
+                $scope.saveSession(asession);
+                deferred.resolve();
+              }
+            }
+          });
+        };
+
+        reader.readAsArrayBuffer(file);
+        return deferred.promise;
+      };
+
+      $scope.importJSON = function(file) {
+        var deferred = $q.defer();
+
+        console.log("importing JSON:" + file);
+        var reader = new FileReader();
+
+        reader.onloadend = function() {
+          var asession = JSON.parse(this.result);
+          //Save session already compute session
+          $scope.saveSession(asession);
+          deferred.resolve();
+        };
+
+        reader.readAsText(file);
+
+        return deferred.promise;
+      };
+
+      $scope.importGPX = function(file) {
+        var deferred = $q.defer();
+
+        console.log("importing GPX:" + file);
+        var reader = new FileReader();
+
+        reader.onloadend = function() {
+          var x2js = new X2JS();
+          var json = x2js.xml_str2json(this.result);
+
+          var gpxPoints = [];
+
+          if (json.gpx.trk.trkseg instanceof Array) {
+            json.gpx.trk.trkseg.map(function(item) {
+              gpxPoints = gpxPoints.concat(item.trkpt);
+            });
+          } else {
+            gpxPoints = json.gpx.trk.trkseg.trkpt;
+          }
+
+          //NOW RECOMPUTE AND CREATE
+          var asession = {};
+          asession.gpxData = [];
+
+          gpxPoints.map(function(item) {
+            var bpms;
+            var accuracy;
+            var power;
+            var cadence;
+            var stryde;
+
+            try {
+              bpms = parseFloat(item.extensions.TrackPointExtension.hr.__text);
+            } catch (exception) {
+              try {
+                bpms = parseFloat(item.extensions.hr.__text);
+              } catch (exception2) {
+                bpms = undefined;
+              }
+            }
+            try {
+              power = parseFloat(
+                item.extensions.TrackPointExtension.power.__text
+              );
+            } catch (exception) {
+              try {
+                power = parseFloat(item.extensions.power.__text);
+              } catch (exception2) {
+                power = undefined;
+              }
+            }
+            try {
+              cadence = parseFloat(
+                item.extensions.TrackPointExtension.cad.__text
+              );
+            } catch (exception) {
+              try {
+                cadence = parseFloat(item.extensions.cad.__text);
+              } catch (exception2) {
+                cadence = undefined;
+              }
+            }
+            try {
+              accuracy = parseFloat(
+                item.extensions.TrackPointExtension.accuracy.__text
+              );
+            } catch (exception) {
+              try {
+                accuracy = parseFloat(item.extensions.accuracy.__text);
+              } catch (exception2) {
+                accuracy = undefined;
+              }
+            }
+            try {
+              stryde = parseFloat(
+                item.extensions.TrackPointExtension.stryde.__text
+              );
+            } catch (exception) {
+              try {
+                stryde = parseFloat(item.extensions.stryde.__text);
+              } catch (exception2) {
+                stryde = undefined;
+              }
+            }
+
+            asession.gpxData.push([
+              item._lat,
+              item._lon,
+              item.time,
+              item.ele,
+              bpms,
+              accuracy,
+              cadence,
+              power,
+              stryde
+            ]);
+          });
+
+          asession.recclicked = new Date(gpxPoints[0].time).getTime();
+          //Save session already compute session
+          $scope.saveSession(asession);
+
+          deferred.resolve();
+        };
+
+        reader.readAsText(file);
+
+        return deferred.promise;
+      };
+
+      $scope.iosFilePicker = function() {
+        var p = [];
+
+        window.FilePicker.pickFile(
+          function(path) {
+            window.resolveLocalFileSystemURL(
+              path,
+              function(fileEntry) {
+                fileEntry.file(function(file) {
+                  if (file.name.slice(-4) == ".gpx") {
+                    p.push($scope.importGPX(file));
+                  } else if (file.name.slice(-4) == ".fit") {
+                    p.push($scope.importFIT(file));
+                  } else if (file.name.slice(-4) == "json") {
+                    p.push($scope.importJSON(file));
+                  }
+                });
+              },
+              function(err) {
+                console.error(err);
+              }
+            );
+          },
+          function(err) {
+            $ionicPopup.alert({
+              title: $scope.translateFilter("_file_import_title"),
+              template: err
+            }); //, utis);
+          }
+        );
+
+        $q.all(p).then(function() {
           $ionicPopup.alert({
             title: $scope.translateFilter("_file_import_title"),
-            template: err
-          }); //, utis);
-        }
-      );
-
-      $q.all(p).then(function() {
-        $ionicPopup.alert({
-          title: $scope.translateFilter("_file_import_title"),
-          template: $scope.translateFilter("_file_file_imported")
+            template: $scope.translateFilter("_file_file_imported")
+          });
         });
-      });
-    };
+      };
 
-    $scope.doFileChooser = function() {
-      if ($scope.platform === "iOS") {
-        $scope.iosFilePicker();
-      } else if ($scope.platform === "OldAndroid") {
-        $state.go("app.filepicker");
-      } else {
+      $scope.doFileChooser = function() {
+        if ($scope.platform === "iOS") {
+          $scope.iosFilePicker();
+        } else if ($scope.platform === "OldAndroid") {
+          $state.go("app.filepicker");
+        } else {
         $timeout(function() {
-          document.getElementById("gpxFile").click();
+          try {
+            document.getElementById("gpxFileInputButton").click();
+          }  catch (err) {
+          console.error("Import File failed : " + err);
+        }
+
         }, 100);
       }
     };
 
     $scope.sendLogs = function() {
       window.open(
-        "mailto:khertan@khertan.net?subject=ForRunners Log&body=" +
+        "mailto:b@rvier.fr?subject=ForRunners Log&body=" +
           JSON.stringify(window.initialLogs, null, 2)
       );
     };
@@ -1493,8 +1498,7 @@ angular
       gpxHead +=
         '<gpx xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" creator="ForRunners" version="1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/GpxExtensions/v3 http://www.garmin.com/xmlschemas/GpxExtensionsv3.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd">';
       gpxHead += "<metadata>\n";
-      gpxHead += '<link href="http://www.khertan.net">\n';
-      gpxHead += "<text>Khertan Software</text>\n";
+      gpxHead += '<link href="http://rvier.fr">\n';
       gpxHead += "</link>\n";
       gpxHead += "<time>" + moment().format() + "</time>\n";
       gpxHead += "</metadata>\n";

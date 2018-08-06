@@ -462,7 +462,7 @@ angular
       deAT: "Allemand()",
       ptPT: "Portugais",
       _privacy_policy_text:
-        "ForRunners ne communique aucune information en dehors de votre périphérique, exception faite lors de la recupération des carte OpenStreetMap et si vous activez le mode debug ou des logs de debug seront envoyé sur http://khertan.net/.",
+        "ForRunners ne communique aucune information en dehors de votre périphérique, exception faite lors de la recupération des carte OpenStreetMap et si vous activez le mode debug ou des logs de debug seront envoyé sur http://rvier.fr/.",
       _short_description:
         "Une application de géolocalisation dédiée aux coureurs.",
       _use_open_source_text:

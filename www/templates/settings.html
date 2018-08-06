@@ -195,11 +195,11 @@
       class="button icon-left ion-pin button-positive button-block"></button>-->
   <button ng-click="doFileChooser();" class="button icon-left ion-pin button-positive button-block">
       {{ "_import_files" | translate }}
-  <input type="file"  multiple="multiple" name="gpxFile"
-  class="button icon-left ion-pin button-positive button-block"
-  id="gpxFile" class="form-control"
-  onchange="angular.element(this).scope().importFiles(this)"
-  style="display: none;">
+      <input type="file"  multiple="multiple" name="gpxFileInputButton"
+        class="button icon-left ion-pin button-positive button-block"
+        id="gpxFileInputButton" class="form-control"
+        onchange="angular.element(this).scope().importFiles(this)"
+        style="display: none;">
   </button>
 
 <!--<div class="content double-padding">
