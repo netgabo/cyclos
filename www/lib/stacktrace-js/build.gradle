@@ -18,7 +18,7 @@ def destFile = "${buildDir}/stacktrace-min.js"
 def testDir = 'test'
 
 repositories {
-	mavenRepo url: 'http://repository.springsource.com/maven/bundles/release'
+	mavenRepo url: 'https://repository.springsource.com/maven/bundles/release'
 	mavenCentral()
 }
 
