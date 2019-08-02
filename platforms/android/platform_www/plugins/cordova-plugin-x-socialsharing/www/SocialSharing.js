@@ -70,16 +70,20 @@ SocialSharing.prototype.shareViaFacebookWithPasteMessageHint = function (message
 };
 
 SocialSharing.prototype.shareViaWhatsApp = function (message, fileOrFileArray, url, successCallback, errorCallback) {
-  cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsApp"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null]);
+  cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsApp"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null, null]);
 };
 
 SocialSharing.prototype.shareViaWhatsAppToReceiver = function (receiver, message, fileOrFileArray, url, successCallback, errorCallback) {
-  cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToReceiver"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, receiver]);
+  cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToReceiver"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, receiver, null]);
+};
+
+SocialSharing.prototype.shareViaWhatsAppToPhone = function (phone, message, fileOrFileArray, url, successCallback, errorCallback) {
+  cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToPhone"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null, phone]);
 };
 
 SocialSharing.prototype.shareViaSMS = function (options, phonenumbers, successCallback, errorCallback) {
   var opts = options;
-  if (typeof options == "string") {
+  if (typeof options === "string") {
     opts = {"message":options}; // for backward compatibility as the options param used to be the message
   }
   cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaSMS"), "SocialSharing", "shareViaSMS", [opts, phonenumbers]);
@@ -134,7 +138,13 @@ SocialSharing.install = function () {
   }
 
   window.plugins.socialsharing = new SocialSharing();
-  navigator.share = window.plugins.socialsharing.shareW3C;
+
+  // Note only polyfill navigator.share if it is not defined, since shareW3C implements L1 of the spec,
+  // and an existing navigator.share method could implement L2.
+  if (!navigator.share) {
+    navigator.share = window.plugins.socialsharing.shareW3C;
+  }
+
   return window.plugins.socialsharing;
 };
 

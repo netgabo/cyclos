@@ -43,8 +43,15 @@
 [13]: https://f-droid.org/badge/get-it-on.png
 [14]: https://f-droid.org/packages/net.khertan.forrunners/
 
+## Roadmap
+
+After a long pause in development of the application, i got some time to improve, update and fix issues.
+
+- [ ] Fix Android 9 compatibilities issues
+- [ ] Release a more recent release which accept different type of session (Run/Cycling/...)
+
 ## Contribute
- 
+   
 ###  Translations
 All translation are located in www/js/app.js
 The best way is to fork ForRunners, create a new repo, translate it to your language and then make a pull request.
