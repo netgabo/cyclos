@@ -8,4 +8,3 @@
 
 * Run on an Android Device
   ionic cordova run android
-

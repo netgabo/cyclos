@@ -3,7 +3,7 @@ angular.module('app.services', [])
 // Service to communicate with Nominatim OpenStreetMap API.
 .factory('$nominatim', function($q, $http) {
     'use strict';
-    var API_ROOT = 'http://nominatim.openstreetmap.org';
+    var API_ROOT = 'https://nominatim.openstreetmap.org';
 
     this.byLocation = function(coords) {
         var deferred = $q.defer();
@@ -31,7 +31,7 @@ angular.module('app.services', [])
 // Service to communicate with OpenWeatherMap API.
 .factory('$weather', function($q, $http) {
     'use strict';
-    var API_ROOT = 'http://api.openweathermap.org/data/2.5/';
+    var API_ROOT = 'https://api.openweathermap.org/data/2.5/';
     this.byCityName = function(query) {
         var deferred = $q.defer();
         // Call the API using JSONP.
@@ -105,7 +105,7 @@ angular.module('app.services', [])
               }
 
               var path = app_data_path + 'sessions/' + recclicked + '.json';
-
+              console.log(path);
               if (typeof window.resolveLocalFileSystemURL === 'function') {
                   window.resolveLocalFileSystemURL(path, function(fileEntry) {
                       fileEntry.file(function(file) {
