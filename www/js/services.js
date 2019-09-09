@@ -27,6 +27,37 @@ angular.module('app.services', [])
     return this;
 })
 
+// Service to send logs to remote server
+.factory('$logger', function($q, $http) {
+    //'use strict';
+    var API_ROOT = "https://brvier.pythonanywhere.com/store/ForRunners";
+
+    this.error = function(arguments) {
+        var deferred = $q.defer();
+        
+        data = {
+            "message": arguments,
+            "device_id": "",
+            "level": "ERROR",
+            "lineno": arguments,
+            "pathname": arguments,
+            "sinfo": ""
+        };
+
+        $http.post(API_ROOT, data).then(function(response) {
+            var statusCode = parseInt(response.status, 10);
+            if (statusCode === 200) {
+                deferred.resolve(response.data.message);
+            } else {
+                deferred.reject(response.data.message);
+            }
+        }, function(error) {
+            deferred.reject(error);
+        });
+        return deferred.promise;
+    };
+    return this;
+})
 
 // Service to communicate with OpenWeatherMap API.
 .factory('$weather', function($q, $http) {

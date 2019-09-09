@@ -184,6 +184,13 @@
   toggle-class="toggle-positive">
   {{ "_use_google_elevation_api" | translate }}
   </ion-toggle>
+  <ion-toggle ng-model="prefs.sendlogs"
+  ng-checked="prefs.sendlogs"
+  ng-change="savePrefs()"
+  toggle-class="toggle-positive">
+  {{ "_send_logs" | translate }}
+  </ion-toggle>
+
 </div>
  
 <div class="content double-padding">

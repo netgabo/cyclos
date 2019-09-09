@@ -54,7 +54,7 @@ angular
             ];
             var cleanUp = function() {
                 for (var i = 0; i < colors.length; i++) {
-                    var currentColor = activeHeaderBar.classList("bar-" + colors[i]);
+                    var currentColor = activeHeaderBar.classList["bar-" + colors[i]];
                     if (currentColor) {
                         ogColors.push("bar-" + colors[i]);
                     }
@@ -105,6 +105,8 @@ angular
     $nominatim
 ) {
     "use strict";
+
+
 
     try {
         cordova.getAppVersion.getVersionNumber().then(function(version) {
@@ -201,6 +203,8 @@ angular
     $scope.prefs.registeredBLE = {};
 
     $scope.prefs.usegoogleelevationapi = false;
+    $scope.prefs.sendlogs = false;
+
     $scope.bluetooth_scanning = false;
 
     $scope.equipments = [];
@@ -1162,7 +1166,7 @@ angular
                 var sf = new SessionFactory();
                 $scope.session_files.forEach(function(file) {
                     if (file.name.slice(-5) === ".json") {
-                      console.debug(file.name);
+                        console.debug(file.name);
                         $timeout(function() {
                             sf.loadFromFile(file.name.slice(0, -5), $scope.dataPath).then(function(session) {
                                 console.debug('TEST');
@@ -1822,14 +1826,14 @@ angular
                         console.log("its a promise");
                     }
                     if (typeof fileEntry.file === "function") {
-                      fileEntry.file(function(file) {
-                          var reader = new FileReader();
-                          reader.onloadend = function() {
-                              success(JSON.parse(this.result, $scope.dateTimeReviver));
-                              console.log("loaded from file:" + filename);
-                          };
-                          reader.readAsText(file);
-                      });
+                        fileEntry.file(function(file) {
+                            var reader = new FileReader();
+                            reader.onloadend = function() {
+                                success(JSON.parse(this.result, $scope.dateTimeReviver));
+                                console.log("loaded from file:" + filename);
+                            };
+                            reader.readAsText(file);
+                        });
                     }
                 },
                 function(err) {
@@ -2075,91 +2079,7 @@ angular
         );
     };
 
-    // Run
-    // Load Session Index
-    $scope.loadSessionsIndex();
 
-    // Load Resume
-    $scope.loadResumeGraph();
-
-    $timeout(function() {
-        $scope.detectBLEDevice();
-    }, 200);
-
-    $timeout(function() {
-        $scope.loadEquipments();
-    }, 500);
-
-    $scope.translateFilter = $filter("translate");
-
-    $scope.storageGetObj(
-        "prefs",
-        function(prefs) {
-            if (prefs) {
-                for (var prop in prefs) {
-                    $scope.prefs[prop] = prefs[prop];
-                }
-                $scope.setLang();
-            }
-        },
-        function(err) {
-            console.log(err);
-        }
-    );
-
-    $scope.glbs = {
-        heartRate: {
-            service: "180d",
-            measurement: "2a37"
-        },
-        cadence: {
-            service: "1814",
-            measurement: "2a53"
-        },
-        power: {
-            service: "1818",
-            measurement: "2a63"
-        },
-        radius: {
-            miles: 3959,
-            kms: 6371
-        },
-        tounit: {
-            miles: 1609.344,
-            kms: 1000
-        },
-        pace: {
-            miles: 26.8224,
-            kms: 16.6667
-        },
-        speed: {
-            miles: 2.2369,
-            kms: 3.6
-        },
-        pacelabel: {
-            miles: " min/mile",
-            kms: " min/km"
-        },
-        speedlabel: {
-            miles: " mph",
-            kms: " kph"
-        },
-        distancelabel: {
-            miles: " miles",
-            kms: " km"
-        }
-    };
-
-    $ionicPlatform.registerBackButtonAction(function() {
-        if ($scope.running === false) {
-            var view = $ionicHistory.backView();
-            if (view) {
-                view.go();
-            }
-        } else {
-            $state.go("app.running");
-        }
-    }, 100);
 
     $scope.openModal = function() {
         $state.go("app.running");
@@ -2440,7 +2360,7 @@ angular
             try {
                 cordova.plugins.ActivityRecognition.StopActivityUpdates(
                     function(msg) {
-                        cordova.plugins.ActivityRecognition.Dissconnect(
+                        cordova.plugins.ActivityRecognition.Disconnect(
                             function(msg) {},
                             function(msg) {}
                         );
@@ -2762,11 +2682,11 @@ angular
 
                                 //Speed between this and previous point
                                 dtd = new Date(timenew) - new Date($scope.session.timeold);
-                                dspeed = d / (dtd / 1000 / 60 / 60);
+                                dspeed = d / dtd; // Stay in meter / seconds
 
                                 elapsed = timenew - $scope.session.firsttime;
 
-                                if (dspeed > 0.001) {
+                                if (dspeed > 0.1) {
                                     $scope.session.equirect += d;
                                 }
 
@@ -2805,9 +2725,9 @@ angular
                                 //Workarround for some device not aving cor speed
                                 var gpsspeed;
                                 if (pos.coords.speed === null) {
-                                    gpsspeed = dspeed;
+                                    gpsspeed = dspeed * $scope.glbs.speed[$scope.prefs.unit];
                                 } else {
-                                    gpsspeed = pos.coords.speed;
+                                    gpsspeed = pos.coords.speed * $scope.glbs.speed[$scope.prefs.unit];
                                 }
                                 if (!isNaN(gpsspeed)) $scope.session.speeds.push(gpsspeed);
                                 $scope.session.speeds = $scope.session.speeds.slice(-5);
@@ -3089,7 +3009,7 @@ angular
                 text: $scope.translateFilter("_notification_message"),
                 color: "FFF",
                 hidden: false,
-                silent:  false,
+                silent: false,
             });
             cordova.plugins.backgroundMode.onactivate = function() {
                 console.log("backgroundMode onActivate");
@@ -3407,6 +3327,137 @@ angular
             });
         }
     };
+
+    // main
+    $scope.translateFilter = $filter("translate");
+
+    $scope.storageGetObj(
+        "prefs",
+        function(prefs) {
+            if (prefs) {
+                for (var prop in prefs) {
+                    $scope.prefs[prop] = prefs[prop];
+                }
+                $scope.setLang();
+            }
+        },
+        function(err) {
+            console.log(err);
+        }
+    );
+
+    if ($scope.prefs.sendlogs === true) {
+        window.oldConsole = {
+            error: console.error,
+            log: console.log,
+            warn: console.warn,
+            info: console.info
+        };
+        window.initialLogs = [];
+
+
+        if (window.cordova) {
+            console.log = function() {
+                var argsArr = Array.prototype.slice.call(arguments);
+                window.oldConsole.log.apply(this, argsArr);
+                //$logger.error(argsArr);
+            };
+
+            console.error = function() {
+                var argsArr = Array.prototype.slice.call(arguments);
+                window.oldConsole.error.apply(this, argsArr);
+                //$logger.error(argsArr);
+            };
+
+            console.info = function() {
+                var argsArr = Array.prototype.slice.call(arguments);
+                window.oldConsole.info.apply(this, argsArr);
+                $logger.error(argsArr);
+            };
+
+            console.warn = function() {
+                var argsArr = Array.prototype.slice.call(arguments);
+                window.oldConsole.warn.apply(this, argsArr);
+                //$logger.error(argsArr);
+            };
+
+            window.onerror = function() {
+                // route errors to console.error for now
+                var argsArr = Array.prototype.slice.call(arguments);
+                window.oldConsole.error.apply(this, argsArr);
+                //$logger.error(argsArr);
+            };
+        }
+    }
+
+    // Load Session Index
+    $scope.loadSessionsIndex();
+
+    // Load Resume
+    $scope.loadResumeGraph();
+
+    $timeout(function() {
+        $scope.detectBLEDevice();
+    }, 200);
+
+    $timeout(function() {
+        $scope.loadEquipments();
+    }, 500);
+
+    $scope.glbs = {
+        heartRate: {
+            service: "180d",
+            measurement: "2a37"
+        },
+        cadence: {
+            service: "1814",
+            measurement: "2a53"
+        },
+        power: {
+            service: "1818",
+            measurement: "2a63"
+        },
+        radius: {
+            miles: 3959,
+            kms: 6371
+        },
+        tounit: {
+            miles: 1609.344,
+            kms: 1000
+        },
+        pace: {
+            miles: 26.8224,
+            kms: 16.6667
+        },
+        speed: {
+            miles: 2.2369,
+            kms: 3.6
+        },
+        pacelabel: {
+            miles: " min/mile",
+            kms: " min/km"
+        },
+        speedlabel: {
+            miles: " mph",
+            kms: " kph"
+        },
+        distancelabel: {
+            miles: " miles",
+            kms: " km"
+        }
+    };
+
+    $ionicPlatform.registerBackButtonAction(function() {
+        if ($scope.running === false) {
+            var view = $ionicHistory.backView();
+            if (view) {
+                view.go();
+            }
+        } else {
+            $state.go("app.running");
+        }
+    }, 100);
+
 })
 
 //.controller('SessionsCtrl', function($scope, $timeout, ionicMaterialInk, ionicMaterialMotion, $state) {
@@ -3664,7 +3715,7 @@ angular
                     console.error(session);
                     continue;
                 }
-                if (!$scope.records.hasOwnProperty(session.type)){
+                if (!$scope.records.hasOwnProperty(session.type)) {
                     console.log(session.type);
                     console.error('Unknow session type');
                     continue;

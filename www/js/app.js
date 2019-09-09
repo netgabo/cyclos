@@ -25,47 +25,7 @@ angular
       if (window.StatusBar) {
         StatusBar.styleDefault();
       }
-
-      window.oldConsole = {
-        error: console.error,
-        log: console.log,
-        warn: console.warn,
-        info: console.info
-      };
-      window.initialLogs = [];
-
-      /*if (window.cordova) {
-            console.log = function () {
-                var argsArr = Array.prototype.slice.call(arguments);
-            window.oldConsole.log.apply(this, argsArr);
-            window.initialLogs.push(argsArr);
-            };
-
-            console.error = function() {
-                    var argsArr = Array.prototype.slice.call(arguments);
-            window.oldConsole.error.apply(this, argsArr);
-            window.initialLogs.push(argsArr);
-            };
-
-            console.info = function () {
-                    var argsArr = Array.prototype.slice.call(arguments);
-            window.oldConsole.info.apply(this, argsArr);
-            window.initialLogs.push(argsArr);
-            };
-
-            console.warn = function ()  {
-            var argsArr = Array.prototype.slice.call(arguments);
-            window.oldConsole.warn.apply(this, argsArr);
-            window.initialLogs.push(argsArr);
-            };
-
-            window.onerror = function() {
-                // route errors to console.error for now
-                var argsArr = Array.prototype.slice.call(arguments);
-            window.oldConsole.error.apply(this, argsArr);
-            window.initialLogs.push(argsArr);
-            };
-        }*/
+         
 
       if (window.device) {
         console.log(window.device);
