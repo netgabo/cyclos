@@ -22,66 +22,66 @@ angular
     };
 })
 
-.directive("navBarClass", function() {
-    "use strict";
-    return {
-        restrict: "A",
-        compile: function(element, attrs) {
-            // We need to be able to add a class the cached nav-bar
-            // Which provides the background color
-            var cachedNavBar = document.querySelector(
-                '.nav-bar-block[nav-bar="cached"]'
-            );
-            var cachedHeaderBar = cachedNavBar.querySelector(".bar-header");
+// .directive("navBarClass", function() {
+//     "use strict";
+//     return {
+//         restrict: "A",
+//         compile: function(element, attrs) {
+//             // We need to be able to add a class the cached nav-bar
+//             // Which provides the background color
+//             var cachedNavBar = document.querySelector(
+//                 '.nav-bar-block[nav-bar="cached"]'
+//             );
+//             var cachedHeaderBar = cachedNavBar.querySelector(".bar-header");
 
-            // And also the active nav-bar
-            // which provides the right class for the title
-            var activeNavBar = document.querySelector(
-                '.nav-bar-block[nav-bar="active"]'
-            );
-            var activeHeaderBar = activeNavBar.querySelector(".bar-header");
-            var barClass = attrs.navBarClass;
-            var ogColors = [];
-            var colors = [
-                "positive",
-                "stable",
-                "light",
-                "royal",
-                "dark",
-                "assertive",
-                "calm",
-                "energized"
-            ];
-            var cleanUp = function() {
-                for (var i = 0; i < colors.length; i++) {
-                    var currentColor = activeHeaderBar.classList["bar-" + colors[i]];
-                    if (currentColor) {
-                        ogColors.push("bar-" + colors[i]);
-                    }
-                    activeHeaderBar.classList.remove("bar-" + colors[i]);
-                    cachedHeaderBar.classList.remove("bar-" + colors[i]);
-                }
-            };
-            return function($scope) {
-                $scope.$on("$ionicView.beforeEnter", function() {
-                    cleanUp();
-                    cachedHeaderBar.classList.add(barClass);
-                    activeHeaderBar.classList.add(barClass);
-                });
+//             // And also the active nav-bar
+//             // which provides the right class for the title
+//             var activeNavBar = document.querySelector(
+//                 '.nav-bar-block[nav-bar="active"]'
+//             );
+//             var activeHeaderBar = activeNavBar.querySelector(".bar-header");
+//             var barClass = attrs.navBarClass;
+//             var ogColors = [];
+//             var colors = [
+//                 "positive",
+//                 "stable",
+//                 "light",
+//                 "royal",
+//                 "dark",
+//                 "assertive",
+//                 "calm",
+//                 "energized"
+//             ];
+//             var cleanUp = function() {
+//                 for (var i = 0; i < colors.length; i++) {
+//                     var currentColor = activeHeaderBar.classList["bar-" + colors[i]];
+//                     if (currentColor) {
+//                         ogColors.push("bar-" + colors[i]);
+//                     }
+//                     activeHeaderBar.classList.remove("bar-" + colors[i]);
+//                     cachedHeaderBar.classList.remove("bar-" + colors[i]);
+//                 }
+//             };
+//             return function($scope) {
+//                 $scope.$on("$ionicView.beforeEnter", function() {
+//                     cleanUp();
+//                     cachedHeaderBar.classList.add(barClass);
+//                     activeHeaderBar.classList.add(barClass);
+//                 });
 
-                $scope.$on("$stateChangeStart", function() {
-                    for (var j = 0; j < ogColors.length; j++) {
-                        activeHeaderBar.classList.add(ogColors[j]);
-                        cachedHeaderBar.classList.add(ogColors[j]);
-                    }
-                    cachedHeaderBar.classList.remove(barClass);
-                    activeHeaderBar.classList.remove(barClass);
-                    ogColors = [];
-                });
-            };
-        }
-    };
-})
+//                 $scope.$on("$stateChangeStart", function() {
+//                     for (var j = 0; j < ogColors.length; j++) {
+//                         activeHeaderBar.classList.add(ogColors[j]);
+//                         cachedHeaderBar.classList.add(ogColors[j]);
+//                     }
+//                     cachedHeaderBar.classList.remove(barClass);
+//                     activeHeaderBar.classList.remove(barClass);
+//                     ogColors = [];
+//                 });
+//             };
+//         }
+//     };
+// })
 
 .controller("AppCtrl", function(
     $state,
@@ -2681,12 +2681,12 @@ angular
                                 d = (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) * 6371;
 
                                 //Speed between this and previous point
-                                dtd = new Date(timenew) - new Date($scope.session.timeold);
+                                dtd = (new Date(timenew) - new Date($scope.session.timeold))/1000;
                                 dspeed = d / dtd; // Stay in meter / seconds
 
                                 elapsed = timenew - $scope.session.firsttime;
-
-                                if (dspeed > 0.1) {
+                                console.log("dspeed : " +  dspeed * 3600);
+                                if ((dspeed * 3600) > 1) {
                                     $scope.session.equirect += d;
                                 }
 
@@ -2722,23 +2722,29 @@ angular
                                 //$scope.session.speed = average($scope.session.speeds, 1).toFixed(1);
                                 //$scope.session.speed = pos.coords.speed * 3.6;
                                 //
+                                
                                 //Workarround for some device not aving cor speed
-                                var gpsspeed;
-                                if (pos.coords.speed === null) {
-                                    gpsspeed = dspeed * $scope.glbs.speed[$scope.prefs.unit];
-                                } else {
-                                    gpsspeed = pos.coords.speed * $scope.glbs.speed[$scope.prefs.unit];
-                                }
+                                // Do not use speed given by GPS as most Android device give inaccurate information
+                                var gpsspeed = pos.coords.speed * 3.6 ;
+                                //gpsspeed = $scope.session.avspeed / 1000;
+
                                 if (!isNaN(gpsspeed)) $scope.session.speeds.push(gpsspeed);
                                 $scope.session.speeds = $scope.session.speeds.slice(-5);
                                 $scope.session.speed = average($scope.session.speeds, 1);
 
+                                if ($scope.session.speed < 1) {
+                                    $scope.session.speed = 0;
+                                }
+
                                 var currentPace =
                                     $scope.glbs.pace[$scope.prefs.unit] / $scope.session.speed;
+
                                 $scope.session.pace =
                                     Math.floor(currentPace) +
                                     ":" +
                                     ("0" + Math.floor((currentPace % 1) * 60)).slice(-2);
+                                
+
                                 if ($scope.session.maxspeed < $scope.session.speed) {
                                     $scope.session.maxspeed = $scope.session.speed;
                                 }
@@ -3157,11 +3163,13 @@ angular
             if ($scope.session.firsttime > 0) {
                 console.debug($scope.session.firsttime);
                 var elapsed = Date.now() - $scope.session.firsttime - $scope.session.deltagpstime;
-                var hour = Math.floor(elapsed / 3600000);
-                var minute = ("0" + (Math.floor(elapsed / 60000) - hour * 60)).slice(-2);
-                var second = ("0" + Math.floor((elapsed % 60000) / 1000)).slice(-2);
-                $scope.session.time = hour + ":" + minute + ":" + second;
-                $scope.session.elapsed = elapsed;
+                if (elapsed > $scope.session.elapsed) {
+                    var hour = Math.floor(elapsed / 3600000);
+                    var minute = ("0" + (Math.floor(elapsed / 60000) - hour * 60)).slice(-2);
+                    var second = ("0" + Math.floor((elapsed % 60000) / 1000)).slice(-2);
+                    $scope.session.time = hour + ":" + minute + ":" + second;
+                    $scope.session.elapsed = elapsed;
+                }
             }
         }, 2000);
 
@@ -3806,26 +3814,26 @@ angular
 ) {
     "use strict";
 
-    // $ionicPopover
-    //     .fromTemplateUrl("templates/session_popover.html", {
-    //         scope: $scope
-    //     })
-    //     .then(function(popover) {
-    //         $scope.popover = popover;
-    //     });
+     $ionicPopover
+         .fromTemplateUrl("templates/session_popover.html", {
+             scope: $scope
+         })
+         .then(function(popover) {
+             $scope.popover = popover;
+         });
 
-    // $scope.openPopover = function($event) {
-    //     $scope.popover.show($event);
-    // };
+     $scope.openPopover = function($event) {
+         $scope.popover.show($event);
+     };
 
-    // $scope.closePopover = function() {
-    //     $scope.popover.hide();
-    // };
+     $scope.closePopover = function() {
+         $scope.popover.hide();
+     };
 
     // //Cleanup the popover when we're done with it!
-    // $scope.$on("$destroy", function() {
-    //     $scope.popover.remove();
-    // });
+     $scope.$on("$destroy", function() {
+         $scope.popover.remove();
+     });
 
     // // Execute action on hidden popover
     // $scope.$on("popover.hidden", function() {
